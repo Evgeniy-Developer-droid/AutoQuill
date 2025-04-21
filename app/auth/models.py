@@ -3,6 +3,7 @@ from sqlalchemy import ForeignKey, DateTime
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
+from app.users.models import User
 
 
 class AuthSession(Base):

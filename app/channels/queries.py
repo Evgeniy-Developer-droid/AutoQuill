@@ -1,9 +1,10 @@
+from datetime import datetime
 from typing import List
 
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from app.auth.models import AuthSession
 from sqlalchemy import select, insert, delete, update, func
-from app.channels.models import Channel
+from app.channels.models import Channel, ChannelLog
 import traceback
 
 
@@ -66,7 +67,7 @@ async def get_channels_query(company_id: int, page: int, limit: int, session: As
             select(Channel)
             .where(Channel.company_id == company_id)
             .offset((page - 1) * limit)
-            .limit(limit)
+            .limit(limit).order_by(Channel.created_at.desc())
         )
         result = await session.execute(stmt)
         channels = result.scalars().all()
@@ -82,4 +83,54 @@ async def get_channels_query(company_id: int, page: int, limit: int, session: As
     except Exception as e:
         traceback.print_exc()
         return [], 0
+
+
+async def create_channel_log_query(data: dict, session: AsyncSession) -> ChannelLog:
+    try:
+        stmt = insert(ChannelLog).values(**data).returning(ChannelLog)
+        result = await session.execute(stmt)
+        await session.commit()
+        return result.scalars().first()
+    except Exception as e:
+        await session.rollback()
+        traceback.print_exc()
+
+
+async def get_channel_logs_query(channel_id: int, page: int, limit: int, session: AsyncSession) -> tuple[List[ChannelLog], int]:
+    try:
+        page = max(page, 1)
+        stmt = (
+            select(ChannelLog)
+            .where(ChannelLog.channel_id == channel_id)
+            .offset((page - 1) * limit)
+            .limit(limit).order_by(ChannelLog.created_at.desc())
+        )
+        result = await session.execute(stmt)
+        logs = result.scalars().all()
+
+        count_stmt = (
+            select(func.count(ChannelLog.id))
+            .where(ChannelLog.channel_id == channel_id)
+        )
+        count_result = await session.execute(count_stmt)
+        total_count = count_result.scalar_one()
+
+        return logs, total_count
+    except Exception as e:
+        traceback.print_exc()
+        return [], 0
+
+
+async def delete_channel_logs_by_before_date_query(before_date: datetime, session: AsyncSession):
+    try:
+        stmt = delete(ChannelLog).where(
+            ChannelLog.created_at < before_date
+        )
+        await session.execute(stmt)
+        await session.commit()
+        return True
+    except Exception as e:
+        await session.rollback()
+        traceback.print_exc()
+        return False
 

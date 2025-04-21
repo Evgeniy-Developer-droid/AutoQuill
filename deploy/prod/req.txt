@@ -51,3 +51,6 @@ uvloop==0.21.0
 watchfiles==1.0.4
 websockets==14.1
 sqladmin==0.20.1
+celery==5.5.1
+redis==5.1.0
+pytz==2025.2

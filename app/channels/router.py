@@ -37,6 +37,7 @@ async def update_channel(
     """
     Update an existing channel.
     """
+    print(channel.model_dump(exclude_none=True))
     existing_channel = await channel_queries.get_channel_query(channel_id, user.company_id, session)
     if not existing_channel:
         raise HTTPException(status_code=404, detail="Channel not found")
@@ -95,3 +96,16 @@ async def list_channels(
     return {"channels": channels, "total": total}
 
 
+@router.get("/{channel_id}/logs", response_model=channel_schemas.ChannelLogListSchema)
+async def list_channel_logs(
+    channel_id: int,
+    page: int = 1,
+    limit: int = 10,
+    session: AsyncSession = Depends(get_session),
+    user: user_models.User = Depends(auth_tools.get_current_active_user),
+):
+    """
+    List logs for a specific channel with pagination.
+    """
+    logs, total = await channel_queries.get_channel_logs_query(channel_id, page, limit, session)
+    return {"logs": logs, "total": total}

@@ -19,14 +19,12 @@ router = APIRouter()
 )
 async def register_api(
     user_data: auth_schemas.RegisterUserInSchema,
-    company_data: auth_schemas.RegisterCompanyInSchema,
     db_session: AsyncSession = Depends(get_session),
 ):
-    business = await user_queries.get_business_by_id(company_data.business_id, db_session)
-    if not business:
-        raise HTTPException(status_code=404, detail="Business not found")
 
-    company_data_dict = company_data.model_dump()
+    company_data_dict = {
+        "name": user_data.email
+    }
     company = await user_queries.create_company(company_data_dict, db_session)
     if not company:
         raise HTTPException(status_code=400, detail="Something went wrong")
@@ -57,18 +55,46 @@ async def login_api(
         raise HTTPException(status_code=404, detail="User is not active")
     if not await auth_tools.password_verify(data.password, user.password):
         raise HTTPException(status_code=404, detail="User not found")
-    token_hex = uuid4().hex
+    token = uuid4().hex
     auth_session = await auth_queries.create_auth_session(
         {
-            "token": token_hex,
+            "token": token,
             "user_id": user.id,
             "expired_at": datetime.now()
             + timedelta(minutes=config.ACCESS_TOKEN_EXPIRE_MINUTES),
         },
         db_session,
     )
-    token = auth_tools.create_access_token({"sub": token_hex})
-    return {"token": token}
+    access_token = auth_tools.create_access_token({"jti": token, "sub": user.email})
+    refresh_token = auth_tools.create_refresh_token({"jti": token, "sub": user.email})
+    return {"access_token": access_token, "refresh_token": refresh_token}
+
+
+@router.post(
+    "/refresh",
+    response_model=auth_schemas.AuthOutSchema,
+    tags=["auth"],
+)
+async def refresh_api(
+    data: auth_schemas.RefreshTokenInSchema,
+    db_session: AsyncSession = Depends(get_session),
+):
+    token_data = auth_tools.decode_refresh_token(data.refresh_token)
+    if not token_data:
+        raise HTTPException(status_code=401, detail="Token expired")
+    if not token_data["sub"]:
+        raise HTTPException(status_code=401, detail="Token expired")
+    auth_session = await auth_queries.get_auth_session(
+        token_data["jti"], db_session
+    )
+    if not auth_session:
+        raise HTTPException(status_code=401, detail="Token expired")
+    return {
+        "access_token": auth_tools.create_access_token(
+            {"jti": token_data["jti"], "sub": token_data["sub"]}
+        ),
+        "refresh_token": data.refresh_token
+    }
 
 
 @router.get(
@@ -107,6 +133,6 @@ async def login_swagger_api(
         },
         db_session,
     )
-    token = auth_tools.create_access_token({"sub": token_hex})
+    token = auth_tools.create_access_token({"jti": token_hex, "sub": user.email})
 
     return {"access_token": token, "token_type": "bearer"}

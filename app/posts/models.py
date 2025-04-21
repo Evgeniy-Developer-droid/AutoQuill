@@ -17,5 +17,7 @@ class Post(Base):
     scheduled_time: Mapped[datetime] = mapped_column(DateTime(), nullable=True)  # Time when the post is scheduled to be sent
     created_at: Mapped[datetime] = mapped_column(DateTime(), server_default=func.now())  # Time when the post was created
     status: Mapped[str] = mapped_column(nullable=False, default="draft")  # Status of the post (e.g., draft, scheduled, published, failed)
+    timezone: Mapped[str] = mapped_column(nullable=True, server_default="UTC")  # Timezone of the scheduled time
 
     channel: Mapped["Channel"] = relationship(back_populates="posts", lazy="selectin")
+    logs: Mapped["ChannelLog"] = relationship(back_populates="post", lazy="selectin")  # Relationship to channel logs

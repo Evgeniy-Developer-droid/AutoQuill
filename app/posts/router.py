@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from app.auth import auth as auth_tools
 from app.posts import queries as post_queries
 from app.posts import schemas as post_schemas
+from app.schemas import SuccessResponseSchema
 from app.users import models as user_models
 from app.database import get_session
+from app.providers import telegram
+import pytz
 
 
 router = APIRouter()
@@ -21,6 +24,13 @@ async def create_post(
     """
     post_data = post.model_dump()
     post_data["company_id"] = user.company_id
+    if post_data["scheduled_time"]:
+        post_data["scheduled_time"] = post_data["scheduled_time"].replace(tzinfo=None)
+        post_data['timezone'] = post.timezone or "UTC"
+        user_tz = pytz.timezone(post_data['timezone'])
+        localized_time = user_tz.localize(post_data["scheduled_time"])
+        utc_time = localized_time.astimezone(pytz.utc)
+        post_data["scheduled_time"] = utc_time.replace(tzinfo=None)
     new_post = await post_queries.create_post_query(post_data, session)
     if not new_post:
         raise HTTPException(status_code=400, detail="Failed to create post")
@@ -41,7 +51,17 @@ async def update_post(
     if not existing_post:
         raise HTTPException(status_code=404, detail="Post not found")
 
-    updated_post = await post_queries.update_post_query(post_id, post.model_dump(exclude_none=True), session)
+    updated_data = post.model_dump(exclude_none=True)
+
+    if updated_data.get("scheduled_time"):
+        updated_data["scheduled_time"] = updated_data["scheduled_time"].replace(tzinfo=None)
+        updated_data['timezone'] = post.timezone or "UTC"
+        user_tz = pytz.timezone(updated_data['timezone'])
+        localized_time = user_tz.localize(updated_data["scheduled_time"])
+        utc_time = localized_time.astimezone(pytz.utc)
+        updated_data["scheduled_time"] = utc_time.replace(tzinfo=None)
+
+    updated_post = await post_queries.update_post_query(post_id, updated_data, session)
     if not updated_post:
         raise HTTPException(status_code=400, detail="Failed to update post")
     return updated_post
@@ -94,5 +114,34 @@ async def list_posts(
     """
     posts, total = await post_queries.get_posts_query(user.company_id, channel_id, page, limit, session)
     return {"posts": posts, "total": total}
+
+
+@router.post("/{post_id}/send", response_model=SuccessResponseSchema)
+async def send_post(
+    post_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: user_models.User = Depends(auth_tools.get_current_active_user),
+):
+    """
+    Send a post to the channel.
+    """
+    existing_post = await post_queries.get_post_query(post_id, user.company_id, session)
+    if not existing_post:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    provider = None
+    if existing_post.channel.channel_type == "telegram":
+        provider = telegram.Telegram(existing_post)
+
+    if not provider:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    result = await provider.send()
+    if not result:
+        raise HTTPException(status_code=400, detail="Failed to send post")
+
+    return {"message": "Post sent successfully"}
+
+
 
 

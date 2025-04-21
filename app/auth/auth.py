@@ -29,6 +29,32 @@ def create_access_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, config.SECRET_KEY, algorithm=config.ALGORITHM)
     return encoded_jwt
 
+def create_refresh_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.now() + timedelta(days=config.REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, config.SECRET_KEY, algorithm=config.ALGORITHM)
+    return encoded_jwt
+
+
+def decode_refresh_token(token: str):
+    try:
+        payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
+        if datetime.fromtimestamp(payload["exp"]) < datetime.now():
+            raise HTTPException(status_code=401, detail="Token expired")
+        return payload
+    except (JWTError, AttributeError, ValueError):
+        return None
+
+def decode_access_token(token: str):
+    try:
+        payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
+        if datetime.fromtimestamp(payload["exp"]) < datetime.now():
+            raise HTTPException(status_code=401, detail="Token expired")
+        return payload
+    except (JWTError, AttributeError, ValueError):
+        return None
+
 
 async def get_current_auth_session(
     token: str = Depends(oauth2_scheme), db_session: AsyncSession = Depends(get_session)
@@ -40,7 +66,7 @@ async def get_current_auth_session(
     )
     try:
         payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
-        token_session: str = payload.get("sub")
+        token_session: str = payload.get("jti")
         if token_session is None:
             raise credentials_exception
         auth_session = await auth_queries.get_auth_session(token_session, db_session)

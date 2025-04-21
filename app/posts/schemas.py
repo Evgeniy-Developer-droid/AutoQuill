@@ -1,6 +1,6 @@
-from typing import Optional, List
-
-from pydantic import BaseModel, field_validator
+from typing import Optional, List, Literal
+import pytz
+from pydantic import BaseModel, field_validator, field_serializer
 from enum import Enum
 from datetime import datetime
 
@@ -21,10 +21,23 @@ class PostOutSchema(BaseModel):
     scheduled_time: Optional[datetime] = None
     created_at: datetime
     status: PostStatus
+    timezone: Optional[str] = None
 
     class Config:
         orm_mode = True
         use_enum_values = True
+
+    @field_serializer("scheduled_time")
+    def serialize_scheduled_time(self, value: datetime) -> Optional[datetime]:
+        if value:
+            print(f"Original scheduled_time: {value}")
+            # change utc to local time
+            user_tz = pytz.timezone(self.timezone or "UTC")
+            print(f"User timezone: {user_tz}")
+            local_time = value.astimezone(user_tz)
+            print(f"Localized scheduled_time: {local_time}")
+            return local_time.replace(tzinfo=None)
+        return None
 
 
 class PostInSchema(BaseModel):
@@ -32,33 +45,34 @@ class PostInSchema(BaseModel):
     content: str
     ai_generated: bool = False
     scheduled_time: Optional[datetime] = None
+    timezone: Optional[str] = None
+    status: Literal['draft', 'scheduled'] = 'draft'
 
     class Config:
         orm_mode = True
         use_enum_values = True
 
-    @field_validator("scheduled_time", mode="after")
-    def validate_scheduled_time(cls, value):
-        value = value.replace(tzinfo=None) if value else None
-        if value and value < datetime.now():
-            raise ValueError("Scheduled time cannot be in the past.")
+    @field_validator("timezone", mode="before")
+    def validate_timezone(cls, value):
+        if value and value not in pytz.all_timezones:
+            raise ValueError(f"Invalid timezone: {value}")
         return value
 
 
 class PostUpdateSchema(BaseModel):
     content: Optional[str] = None
-    ai_generated: Optional[bool] = None
     scheduled_time: Optional[datetime] = None
+    timezone: Optional[str] = None
+    status: Optional[Literal['draft', 'scheduled']] = None
 
     class Config:
         orm_mode = True
         use_enum_values = True
 
-    @field_validator("scheduled_time", mode="after")
-    def validate_scheduled_time(cls, value):
-        value = value.replace(tzinfo=None) if value else None
-        if value and value < datetime.now():
-            raise ValueError("Scheduled time cannot be in the past.")
+    @field_validator("timezone", mode="before")
+    def validate_timezone(cls, value):
+        if value and value not in pytz.all_timezones:
+            raise ValueError(f"Invalid timezone: {value}")
         return value
 
 

@@ -11,6 +11,7 @@ class UserRole(str, Enum):
 
 class UserSettingsSchema(BaseModel):
     id: int
+    timezone: Optional[str]
 
 
 class UserSchema(BaseModel):

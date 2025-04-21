@@ -30,6 +30,7 @@ pydantic==2.10.5
 pydantic-extra-types==2.10.2
 pydantic-settings==2.7.1
 pydantic_core==2.27.2
+pytz==2025.2
 Pygments==2.19.1
 python-dotenv==1.0.1
 python-jose==3.3.0
@@ -51,3 +52,5 @@ uvloop==0.21.0
 watchfiles==1.0.4
 websockets==14.1
 sqladmin==0.20.1
+celery==5.5.1
+redis==5.1.0

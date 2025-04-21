@@ -44,6 +44,6 @@ class UserSetting(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-
+    timezone: Mapped[str] = mapped_column(nullable=True, server_default="UTC")
     user: Mapped["User"] = relationship(back_populates="settings")
 

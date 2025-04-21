@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List
 
 from sqlalchemy.ext.asyncio.session import AsyncSession
@@ -67,7 +68,7 @@ async def get_posts_query(company_id: int, channel_id: int, page: int, limit: in
             .where(Post.company_id == company_id)
             .where(Post.channel_id == channel_id)
             .offset((page - 1) * limit)
-            .limit(limit)
+            .limit(limit).order_by(Post.created_at.desc())
         )
         result = await session.execute(stmt)
         posts = result.scalars().all()
@@ -85,4 +86,17 @@ async def get_posts_query(company_id: int, channel_id: int, page: int, limit: in
         traceback.print_exc()
         return [], 0
 
+
+async def celery_get_posts_for_loop_query(end_date: datetime, session: AsyncSession) -> List[Post]:
+    try:
+        stmt = (
+            select(Post)
+            .where(Post.scheduled_time <= end_date)
+            .where(Post.status == "scheduled")
+        )
+        result = await session.execute(stmt)
+        return result.scalars().all()
+    except Exception as e:
+        traceback.print_exc()
+        return []
 
