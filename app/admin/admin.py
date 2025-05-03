@@ -85,4 +85,5 @@ def init_admin(app):
     admin.add_view(admin_models.AuthSessionAdmin)
     admin.add_view(admin_models.ChannelAdmin)
     admin.add_view(admin_models.PostAdmin)
+    admin.add_view(admin_models.SourceAdmin)
     return admin

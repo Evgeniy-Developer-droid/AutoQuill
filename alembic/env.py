@@ -11,6 +11,7 @@ from app.auth.models import *
 from app.users.models import *
 from app.channels.models import *
 from app.posts.models import *
+from app.ai.models import *
 from app.models import *
 
 # this is the Alembic Config object, which provides

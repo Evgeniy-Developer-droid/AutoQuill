@@ -18,3 +18,11 @@ POSTGRES_HOST = os.getenv("POSTGRES_HOST")
 
 SUPERUSER_EMAIL = os.getenv("SUPERUSER_EMAIL", "superuser@localhost.com")
 SUPERUSER_PASSWORD = os.getenv("SUPERUSER_PASSWORD", "superuser")
+
+
+ELASTICSEARCH_HOST = os.getenv("ELASTICSEARCH_HOST")
+
+HUGGINGFACE_EMBEDDING_MODEL = "intfloat/multilingual-e5-base"
+MODEL_DEVICE = os.getenv("MODEL_DEVICE", "cpu")
+
+

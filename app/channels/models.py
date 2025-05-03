@@ -20,6 +20,7 @@ class Channel(Base):
     company: Mapped["Company"] = relationship(back_populates="channels", lazy="selectin")
     posts: Mapped["Post"] = relationship(back_populates="channel", lazy="selectin")
     logs: Mapped["ChannelLog"] = relationship(back_populates="channel", lazy="selectin")
+    sources: Mapped["Source"] = relationship(back_populates="channel", lazy="selectin")
 
 
 class ChannelLog(Base):

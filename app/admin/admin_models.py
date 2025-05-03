@@ -3,6 +3,7 @@ from app.users.models import User, UserSetting, Company
 from app.auth.models import AuthSession
 from app.channels.models import Channel
 from app.posts.models import Post
+from app.ai.models import Source
 
 
 class AdminModelView(ModelView):
@@ -65,6 +66,18 @@ class PostAdmin(AdminModelView, model=Post):
     column_searchable_list = [Post.id, Post.channel_id, Post.company_id]
     column_filters = [Post.channel_id, Post.company_id]
 
+
+class SourceAdmin(AdminModelView, model=Source):
+    column_list = [
+        Source.id,
+        Source.channel_id,
+        Source.company_id,
+        Source.source_type,
+        Source.document_id,
+        Source.created_at,
+    ]
+    column_searchable_list = [Source.id, Source.channel_id, Source.company_id, Source.document_id]
+    column_filters = [Source.channel_id, Source.company_id]
 
 
 

@@ -16,6 +16,7 @@ class Company(Base):
 
     users: Mapped["User"] = relationship(back_populates="company", lazy="selectin")
     channels: Mapped["Channel"] = relationship(back_populates="company", lazy="selectin")
+    sources: Mapped["Source"] = relationship(back_populates="company", lazy="selectin")
 
 
 class User(Base):
