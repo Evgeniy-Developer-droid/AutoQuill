@@ -38,7 +38,8 @@ class AdminAuth(AuthenticationBackend):
                 },
                 db_session,
             )
-            token = auth_tools.create_access_token({"sub": token_hex})
+            token = auth_tools.create_access_token({"sub": token_hex},
+                                                   expires_delta=timedelta(minutes=7 * 24 * 60))
             request.session.update({"token": token})
 
         return True
@@ -54,17 +55,21 @@ class AdminAuth(AuthenticationBackend):
         if not token:
             return False
 
-        payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
-        token_session: str = payload.get("sub")
-        if token_session is None:
+        try:
+            payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
+            token_session: str = payload.get("sub")
+            if token_session is None:
+                return False
+            async with async_session_maker() as db_session:
+                auth_session = await auth_queries.get_auth_session(token_session, db_session)
+                if not auth_session:
+                    return False
+                user = auth_session.user
+                if any([not user, not user.is_active, not user.is_superuser]):
+                    return False
+        except Exception as e:
+            print(e)
             return False
-        async with async_session_maker() as db_session:
-            auth_session = await auth_queries.get_auth_session(token_session, db_session)
-            if not auth_session:
-                return False
-            user = auth_session.user
-            if any([not user, not user.is_active, not user.is_superuser]):
-                return False
 
         return True
 

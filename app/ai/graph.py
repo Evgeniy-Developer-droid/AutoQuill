@@ -48,15 +48,16 @@ def retriever_node(state):
         k=3,
         filter=[{"term": {"channel_id": channel_id}}, {"term": {"company_id": company_id}}],
     )
+    print(f"Found {len(docs)} documents for topic '{topic}' in channel '{channel_id}' and company '{company_id}'")
     context = "\n\n".join([doc.page_content for doc in docs])
-    state["context"] = context
+    state["additional_kwargs"]["context"] = context
     return state
 
 
 def prompt_builder(state):
     prompt = state["additional_kwargs"]["prompt"]
     topic = state["additional_kwargs"].get("topic", None)
-    context = state.get("context", None)
+    context = state["additional_kwargs"].get("context", None)
 
     if topic:
         prompt = f"{prompt}\n\nTopic: {topic}"

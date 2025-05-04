@@ -3,7 +3,7 @@ from sqlalchemy import ForeignKey, DateTime
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.channels.models import Channel
-
+from app.ai.models import Source
 from app.database import Base
 
 

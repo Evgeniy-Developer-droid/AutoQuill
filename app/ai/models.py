@@ -2,10 +2,8 @@ from datetime import datetime
 from sqlalchemy import ForeignKey, DateTime, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.channels.models import Channel
 
 from app.database import Base
-from app.users.models import Company
 
 
 class Source(Base):
@@ -20,6 +18,6 @@ class Source(Base):
     source_metadata: Mapped[dict] = mapped_column(JSON, nullable=False)
     document_id: Mapped[str] = mapped_column(nullable=False)
 
-    channel: Mapped[Channel] = relationship(back_populates="sources")
-    company: Mapped[Company] = relationship(back_populates="sources")
+    channel: Mapped["Channel"] = relationship(back_populates="sources")
+    company: Mapped["Company"] = relationship(back_populates="sources")
 
