@@ -13,6 +13,7 @@ from uuid import uuid4
 from app import config
 from app.ai.graph import PostGraph
 from app.auth import auth as auth_tools
+from app.celery_tasks import ai_generate_post_task
 from app.channels import queries as channel_queries
 from app.posts import schemas as post_schemas
 from app.schemas import SuccessResponseSchema
@@ -303,16 +304,9 @@ async def generate_posts(
             "channel_id": channel_id,
             "company_id": user.company_id,
             "topic": data.topic,
+            "timezone": user.settings.timezone
         }
     }
-
-    # run graph
-    result = await post_graph.ainvoke(input_values)
-    print(f"Graph result: {result}")
-
-    print(f"Prompt: {result['additional_kwargs']['prompt']}\n\n\n")
-    print(f"Response: {result['additional_kwargs']['response']}")
-
-
+    ai_generate_post_task.delay(input_values)
 
     return {"message": "Added to queue. You will see the post in the channel soon."}
