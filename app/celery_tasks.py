@@ -1,6 +1,18 @@
+from uuid import uuid4
+
+import arrow
+import fitz
 from celery import Celery
 from celery.utils.log import get_task_logger
+from pathlib import Path
 
+from langchain_huggingface import HuggingFaceEmbeddings
+
+from app.ai import schemas as ai_schemas
+from langchain_elasticsearch import ElasticsearchStore
+from langchain_text_splitters import CharacterTextSplitter
+from app.ai import queries as ai_queries
+from app import config
 from app.ai.graph import PostGraph
 from app.database import async_session_maker
 import asyncio
@@ -14,6 +26,10 @@ celery_app = Celery("tasks")
 celery_app.config_from_object("app.celery_config")
 
 post_graph = PostGraph().get_compiled_graph()
+embedding_model = HuggingFaceEmbeddings(
+    model_name=config.HUGGINGFACE_EMBEDDING_MODEL,
+    model_kwargs={"device": config.MODEL_DEVICE}
+)
 
 logger = get_task_logger(__name__)
 
@@ -107,3 +123,119 @@ def ai_generate_post_task(input_values):
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(ai_generate_post())
+
+
+@celery_app.task
+def proceed_upload_file_task(file_path, credentials):
+    print(f"Proceeding with file: {file_path}")
+    if not Path(file_path).exists():
+        print(f"File {file_path} does not exist.")
+        return
+    async def proceed_upload_file():
+        nonlocal file_path
+        nonlocal credentials
+        document_id = uuid4().hex
+        text_splitter = CharacterTextSplitter(chunk_size=512, chunk_overlap=64)
+
+        es = ElasticsearchStore(
+            es_url=config.ELASTICSEARCH_HOST,
+            index_name="documents",
+        )
+
+        async with async_session_maker() as session:
+            try:
+                if file_path.endswith(".pdf"):
+                    doc = fitz.open(file_path, filetype="pdf")
+                    texts = []
+                    for page in doc:
+                        texts.append(page.get_text())
+
+                    text = "\n\n".join(texts)
+
+                    if text:
+                        chunked_texts = text_splitter.split_text(text)
+                    else:
+                        await create_channel_log_query(
+                            data={
+                                "channel_id": credentials["channel_id"],
+                                "message": f"Sorry, I couldn't extract text from the PDF file {credentials['source_metadata']['file_name']}. Please try again.",
+                            },
+                            session=session,
+                        )
+                        return
+                elif file_path.endswith(".txt") or file_path.endswith(".md"):
+                    with open(file_path, "r", encoding="utf-8") as file:
+                        text = file.read()
+                        chunked_texts = text_splitter.split_text(text)
+                else:
+                    await create_channel_log_query(
+                        data={
+                            "channel_id": credentials["channel_id"],
+                            "message": f"Sorry, I couldn't process the file type {credentials['source_metadata']['file_name']}.",
+                        },
+                        session=session,
+                    )
+                    return
+                if not chunked_texts:
+                    await create_channel_log_query(
+                        data={
+                            "channel_id": credentials["channel_id"],
+                            "message": f"Sorry, I couldn't extract text from the file {credentials['source_metadata']['file_name']}. Please try again.",
+                        },
+                        session=session,
+                    )
+                    return
+                print(f"Chunked texts: {chunked_texts}")
+                for i, chunk in enumerate(chunked_texts):
+                    es_document = ai_schemas.ES_Document(
+                        id=uuid4().hex,
+                        document_id=document_id,
+                        title=credentials["source_metadata"]["file_name"],
+                        text=chunk,
+                        timestamp=arrow.now().format("YYYY-MM-DD"),
+                        channel_id=credentials["channel_id"],
+                        company_id=credentials["company_id"],
+                        embedding=embedding_model.embed_documents(chunk)[0],
+                        metadata={"source": "document"},
+                        page=i,
+                    )
+                    es.client.index(
+                        index="documents",
+                        id=es_document.document_id,
+                        document=es_document.model_dump()
+                    )
+                # save source to db
+                source = ai_schemas.SourcesInSchema(
+                    source_type="file",
+                    source_metadata={
+                        "file_name": credentials["source_metadata"]["file_name"],
+                        "file_type": credentials["source_metadata"]["file_type"],
+                    },
+                    document_id=document_id,
+                    channel_id=credentials["channel_id"],
+                    company_id=credentials["company_id"],
+                )
+                await ai_queries.create_source_query(
+                    session=session,
+                    data=source.model_dump(),
+                )
+                await create_channel_log_query(
+                    data={
+                        "channel_id": credentials["channel_id"],
+                        "message": f"File {credentials['source_metadata']['file_name']} uploaded successfully.",
+                    },
+                    session=session,
+                )
+            except Exception as e:
+                logger.error(f"Error in proceed_upload_file: {e}")
+                await create_channel_log_query(
+                    data={
+                        "channel_id": credentials["channel_id"],
+                        "message": f"Error while uploading file, try again later. File: {credentials['source_metadata']['file_name']}.",
+                    },
+                    session=session,
+                )
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(proceed_upload_file())
+

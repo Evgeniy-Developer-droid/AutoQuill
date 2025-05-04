@@ -28,4 +28,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MAX_TOKEN_LIMIT = int(os.getenv("MAX_TOKEN_LIMIT", 4096))
 GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
 
+UPLOAD_FOLDER = "app/uploads"
+
+
 

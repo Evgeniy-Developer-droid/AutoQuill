@@ -13,7 +13,7 @@ from uuid import uuid4
 from app import config
 from app.ai.graph import PostGraph
 from app.auth import auth as auth_tools
-from app.celery_tasks import ai_generate_post_task
+from app.celery_tasks import ai_generate_post_task, proceed_upload_file_task
 from app.channels import queries as channel_queries
 from app.posts import schemas as post_schemas
 from app.schemas import SuccessResponseSchema
@@ -56,14 +56,24 @@ async def upload_file(
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found.")
 
-    document_id = uuid4().hex
+    filename = f"{uuid4().hex}_{file.filename}"
+    file_path = f"{config.UPLOAD_FOLDER}/{filename}"
 
-    es = ElasticsearchStore(
-        es_url=config.ELASTICSEARCH_HOST,
-        index_name="documents",
-    )
+    with open(file_path, "wb") as f:
+        while content := await file.read(1024 * 1024): # 1MB chunks
+            f.write(content)
+    credentials = {
+        "channel_id": channel_id,
+        "company_id": user.company_id,
+        "source_type": "file",
+        "source_metadata": {
+            "file_name": filename,
+            "file_type": file.content_type
+        },
+    }
+    proceed_upload_file_task.delay(file_path, credentials)
+    # return {"message": f"File {filename} uploaded successfully. File will be processed in background and you will see the result in the channel soon."}
 
-    text_splitter = CharacterTextSplitter(chunk_size=512, chunk_overlap=64)
     if file:
         if file.filename.endswith(".pdf"):
             doc = fitz.open(stream=file.file.read(), filetype="pdf")
@@ -143,6 +153,9 @@ async def upload_document(
     )
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found.")
+
+
+
 
     document_id = uuid4().hex
 
