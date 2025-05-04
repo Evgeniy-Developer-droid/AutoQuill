@@ -45,3 +45,7 @@ class SourcesListSchema(BaseModel):
         orm_mode = True
         use_enum_values = True
 
+
+class GeneratePostsInSchema(BaseModel):
+    topic: Optional[str] = None
+

@@ -24,5 +24,8 @@ ELASTICSEARCH_HOST = os.getenv("ELASTICSEARCH_HOST")
 
 HUGGINGFACE_EMBEDDING_MODEL = "intfloat/multilingual-e5-base"
 MODEL_DEVICE = os.getenv("MODEL_DEVICE", "cpu")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+MAX_TOKEN_LIMIT = int(os.getenv("MAX_TOKEN_LIMIT", 4096))
+GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
 
 

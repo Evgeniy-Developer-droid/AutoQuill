@@ -133,6 +133,7 @@ async def login_swagger_api(
         },
         db_session,
     )
-    token = auth_tools.create_access_token({"jti": token_hex, "sub": user.email})
+    token = auth_tools.create_access_token({"jti": token_hex, "sub": user.email},
+                                           expires_delta=timedelta(hours=24))
 
     return {"access_token": token, "token_type": "bearer"}

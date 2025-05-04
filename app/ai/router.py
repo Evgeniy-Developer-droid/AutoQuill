@@ -1,5 +1,5 @@
 from typing import Optional
-
+from app.ai import prompts
 import arrow
 import fitz
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
@@ -11,6 +11,7 @@ from torch.nn.functional import embedding
 from app.ai import queries as ai_queries
 from uuid import uuid4
 from app import config
+from app.ai.graph import PostGraph
 from app.auth import auth as auth_tools
 from app.channels import queries as channel_queries
 from app.posts import schemas as post_schemas
@@ -28,6 +29,7 @@ embedding_model = HuggingFaceEmbeddings(
     model_name=config.HUGGINGFACE_EMBEDDING_MODEL,
     model_kwargs={"device": config.MODEL_DEVICE}
 )
+post_graph = PostGraph().get_compiled_graph()
 
 
 async def get_embedding_model() -> HuggingFaceEmbeddings:
@@ -94,6 +96,8 @@ async def upload_file(
             timestamp=arrow.now().format("YYYY-MM-DD"),
             channel_id=channel_id,
             company_id=user.company_id,
+            embedding=model.embed_documents(chunk)[0],
+            metadata={"source": "document"},
             page=i,
         )
         es.client.index(
@@ -163,7 +167,9 @@ async def upload_document(
             text=chunk,
             timestamp=arrow.now().format("YYYY-MM-DD"),
             channel_id=channel_id,
+            embedding=model.embed_documents(chunk)[0],
             company_id=user.company_id,
+            metadata={"source": "document"},
             page=i,
         )
         es.client.index(
@@ -265,3 +271,48 @@ async def delete_source(
     )
 
     return {"message": "Source deleted successfully."}
+
+
+@router.post("/generate/posts", response_model=SuccessResponseSchema)
+async def generate_posts(
+    channel_id: int,
+    data: ai_schemas.GeneratePostsInSchema,
+    user: user_models.User = Depends(auth_tools.get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+):
+    print("Generating posts...")
+
+    # get channel
+    channel = await channel_queries.get_channel_query(
+        session=session,
+        channel_id=channel_id,
+        company_id=user.company_id
+    )
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found.")
+
+    prompt = prompts.GENERAL
+    if channel.channel_type == "telegram":
+        prompt = prompts.TELEGRAM
+    elif channel.channel_type == "api":
+        prompt = prompts.API
+
+    input_values = {
+        "additional_kwargs": {
+            "prompt": prompt,
+            "channel_id": channel_id,
+            "company_id": user.company_id,
+            "topic": data.topic,
+        }
+    }
+
+    # run graph
+    result = await post_graph.ainvoke(input_values)
+    print(f"Graph result: {result}")
+
+    print(f"Prompt: {result['additional_kwargs']['prompt']}\n\n\n")
+    print(f"Response: {result['additional_kwargs']['response']}")
+
+
+
+    return {"message": "Added to queue. You will see the post in the channel soon."}

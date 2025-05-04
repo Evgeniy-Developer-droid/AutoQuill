@@ -59,7 +59,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url=(None if not config.DEBUG else "/docs"),
     redoc_url=(None if not config.DEBUG else "/redoc"),
-    lifespan=on_startup
+    # lifespan=on_startup
 )
 
 origins = ["*"]
