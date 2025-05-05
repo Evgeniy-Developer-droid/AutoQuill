@@ -1,40 +1,21 @@
 from typing import Optional
 from app.ai import prompts
-import arrow
-import fitz
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from langchain_elasticsearch import ElasticsearchStore
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_text_splitters import CharacterTextSplitter
 from sqlalchemy.ext.asyncio.session import AsyncSession
-from torch.nn.functional import embedding
 from app.ai import queries as ai_queries
 from uuid import uuid4
 from app import config
-from app.ai.graph import PostGraph
 from app.auth import auth as auth_tools
 from app.celery_tasks import ai_generate_post_task, proceed_upload_file_task
 from app.channels import queries as channel_queries
-from app.posts import schemas as post_schemas
 from app.schemas import SuccessResponseSchema
 from app.ai import schemas as ai_schemas
 from app.users import models as user_models
 from app.database import get_session
-from app.providers import telegram
-import pytz
 
 
 router = APIRouter()
-
-embedding_model = HuggingFaceEmbeddings(
-    model_name=config.HUGGINGFACE_EMBEDDING_MODEL,
-    model_kwargs={"device": config.MODEL_DEVICE}
-)
-post_graph = PostGraph().get_compiled_graph()
-
-
-async def get_embedding_model() -> HuggingFaceEmbeddings:
-    return embedding_model
 
 
 @router.post("/files", response_model=SuccessResponseSchema)
@@ -42,7 +23,6 @@ async def upload_file(
     channel_id: int,
     file: Optional[UploadFile] = File(...),
     user: user_models.User = Depends(auth_tools.get_current_active_user),
-    model: HuggingFaceEmbeddings = Depends(get_embedding_model),
     session: AsyncSession = Depends(get_session),
 ):
     print("Uploading file...")
@@ -72,67 +52,7 @@ async def upload_file(
         },
     }
     proceed_upload_file_task.delay(file_path, credentials)
-    # return {"message": f"File {filename} uploaded successfully. File will be processed in background and you will see the result in the channel soon."}
-
-    if file:
-        if file.filename.endswith(".pdf"):
-            doc = fitz.open(stream=file.file.read(), filetype="pdf")
-            texts = []
-            for page in doc:
-                texts.append(page.get_text())
-
-            text = "\n\n".join(texts)
-
-            if text:
-                chunked_texts = text_splitter.split_text(text)
-            else:
-                raise HTTPException(status_code=400, detail="No text found in PDF file.")
-        elif file.filename.endswith(".txt") or file.filename.endswith(".md"):
-            text = file.file.read().decode()
-            if not text:
-                raise HTTPException(status_code=400, detail="No text found in TXT file.")
-            chunked_texts = text_splitter.split_text(text)
-        else:
-            raise HTTPException(status_code=400, detail="Unsupported file type. Only PDF, TXT, and MD files are supported.")
-
-    if not chunked_texts:
-        raise HTTPException(status_code=400, detail="No text to process.")
-    print(f"Chunked texts: {chunked_texts}")
-    for i, chunk in enumerate(chunked_texts):
-        es_document = ai_schemas.ES_Document(
-            id=uuid4().hex,
-            document_id=document_id,
-            title=f"{file.filename if file else 'text'}",
-            text=chunk,
-            timestamp=arrow.now().format("YYYY-MM-DD"),
-            channel_id=channel_id,
-            company_id=user.company_id,
-            embedding=model.embed_documents(chunk)[0],
-            metadata={"source": "document"},
-            page=i,
-        )
-        es.client.index(
-            index="documents",
-            id=es_document.document_id,
-            document=es_document.model_dump()
-        )
-    # save source to db
-    source = ai_schemas.SourcesInSchema(
-        source_type="file",
-        source_metadata={
-            "file_name": file.filename,
-            "file_type": file.content_type,
-        },
-        document_id=document_id,
-        channel_id=channel_id,
-        company_id=user.company_id,
-    )
-    await ai_queries.create_source_query(
-        session=session,
-        data=source.model_dump(),
-    )
-
-    return {"message": f"File is being processed in background."}
+    return {"message": f"File {filename} uploaded successfully. File will be processed in background and you will see the result in the channel soon."}
 
 
 @router.post("/documents", response_model=SuccessResponseSchema)
@@ -140,11 +60,9 @@ async def upload_document(
     channel_id: int,
     data: ai_schemas.DocumentInSchema,
     user: user_models.User = Depends(auth_tools.get_current_active_user),
-    model: HuggingFaceEmbeddings = Depends(get_embedding_model),
     session: AsyncSession = Depends(get_session),
 ):
     print("Uploading document...")
-
     # get channel
     channel = await channel_queries.get_channel_query(
         session=session,
@@ -154,59 +72,20 @@ async def upload_document(
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found.")
 
-
-
-
-    document_id = uuid4().hex
-
-    es = ElasticsearchStore(
-        es_url=config.ELASTICSEARCH_HOST,
-        index_name="documents",
-    )
-
-    text_splitter = CharacterTextSplitter(chunk_size=512, chunk_overlap=64)
-
-    if not data.text:
-        raise HTTPException(status_code=400, detail="No text provided.")
-    text = data.text
-    chunked_texts = text_splitter.split_text(text)
-    if not chunked_texts:
-        raise HTTPException(status_code=400, detail="No text to process.")
-
-    for i, chunk in enumerate(chunked_texts):
-        es_document = ai_schemas.ES_Document(
-            id=uuid4().hex,
-            document_id=document_id,
-            title=f"No title",
-            text=chunk,
-            timestamp=arrow.now().format("YYYY-MM-DD"),
-            channel_id=channel_id,
-            embedding=model.embed_documents(chunk)[0],
-            company_id=user.company_id,
-            metadata={"source": "document"},
-            page=i,
-        )
-        es.client.index(
-            index="documents",
-            id=es_document.document_id,
-            document=es_document.model_dump()
-        )
-
-    # save source to db
-    source = ai_schemas.SourcesInSchema(
-        source_type="document",
-        source_metadata={
-            "text": data.text,
+    filename = f"{uuid4().hex}.txt"
+    file_path = f"{config.UPLOAD_FOLDER}/{filename}"
+    with open(file_path, "w") as f:
+        f.write(data.text)
+    credentials = {
+        "channel_id": channel_id,
+        "company_id": user.company_id,
+        "source_type": "document",
+        "source_metadata": {
+            "file_name": filename,
+            "file_type": "text/plain",
         },
-        document_id=document_id,
-        channel_id=channel_id,
-        company_id=user.company_id,
-    )
-    await ai_queries.create_source_query(
-        session=session,
-        data=source.model_dump(),
-    )
-
+    }
+    proceed_upload_file_task.delay(file_path, credentials)
     return {"message": f"Document is being processed in background."}
 
 

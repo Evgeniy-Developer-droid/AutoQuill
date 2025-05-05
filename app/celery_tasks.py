@@ -7,7 +7,7 @@ from celery.utils.log import get_task_logger
 from pathlib import Path
 
 from langchain_huggingface import HuggingFaceEmbeddings
-
+import os, sys
 from app.ai import schemas as ai_schemas
 from langchain_elasticsearch import ElasticsearchStore
 from langchain_text_splitters import CharacterTextSplitter
@@ -185,10 +185,10 @@ def proceed_upload_file_task(file_path, credentials):
                         session=session,
                     )
                     return
-                print(f"Chunked texts: {chunked_texts}")
                 for i, chunk in enumerate(chunked_texts):
+                    _id = uuid4().hex
                     es_document = ai_schemas.ES_Document(
-                        id=uuid4().hex,
+                        id=_id,
                         document_id=document_id,
                         title=credentials["source_metadata"]["file_name"],
                         text=chunk,
@@ -201,7 +201,7 @@ def proceed_upload_file_task(file_path, credentials):
                     )
                     es.client.index(
                         index="documents",
-                        id=es_document.document_id,
+                        id=_id,
                         document=es_document.model_dump()
                     )
                 # save source to db
@@ -226,6 +226,8 @@ def proceed_upload_file_task(file_path, credentials):
                     },
                     session=session,
                 )
+                # delete the file after processing
+                os.remove(file_path)
             except Exception as e:
                 logger.error(f"Error in proceed_upload_file: {e}")
                 await create_channel_log_query(
