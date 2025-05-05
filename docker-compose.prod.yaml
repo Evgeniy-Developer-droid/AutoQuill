@@ -24,7 +24,7 @@ services:
       - "9200:9200"
       - "9300:9300"
     volumes:
-      - ./elasticsearch_data:/usr/share/elasticsearch/data
+      - /mnt/data/elasticsearch_data:/usr/share/elasticsearch/data
     restart: unless-stopped
     ulimits:
       memlock:
