@@ -1,4 +1,4 @@
-from app.ai.models import Source
+from app.ai.models import Source, AIConfig
 from datetime import datetime
 from typing import List
 
@@ -74,3 +74,54 @@ async def get_sources_query(company_id: int, channel_id: int, page: int, limit: 
         traceback.print_exc()
         return [], 0
 
+
+async def get_or_create_ai_config_query(
+    company_id: int,
+    channel_id: int,
+    session: AsyncSession,
+) -> AIConfig:
+    try:
+        stmt = (
+            select(AIConfig)
+            .where(AIConfig.company_id == company_id)
+            .where(AIConfig.channel_id == channel_id)
+        )
+        result = await session.execute(stmt)
+        ai_config = result.scalars().first()
+
+        if not ai_config:
+            new_ai_config = AIConfig(
+                company_id=company_id,
+                channel_id=channel_id,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
+            )
+            session.add(new_ai_config)
+            await session.commit()
+            return new_ai_config
+
+        return ai_config
+    except Exception as e:
+        traceback.print_exc()
+
+
+async def update_ai_config_query(
+    company_id: int,
+    channel_id: int,
+    data: dict,
+    session: AsyncSession,
+) -> AIConfig:
+    try:
+        stmt = (
+            update(AIConfig)
+            .where(AIConfig.company_id == company_id)
+            .where(AIConfig.channel_id == channel_id)
+            .values(**data)
+            .returning(AIConfig)
+        )
+        result = await session.execute(stmt)
+        await session.commit()
+        return result.scalars().first()
+    except Exception as e:
+        await session.rollback()
+        traceback.print_exc()

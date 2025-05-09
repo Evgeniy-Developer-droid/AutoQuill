@@ -5,7 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.posts.models import Post
-from app.ai.models import Source
+from app.ai.models import Source, AIConfig
 
 
 class Channel(Base):
@@ -22,6 +22,7 @@ class Channel(Base):
     posts: Mapped["Post"] = relationship(back_populates="channel", lazy="selectin")
     logs: Mapped["ChannelLog"] = relationship(back_populates="channel", lazy="selectin")
     sources: Mapped["Source"] = relationship(back_populates="channel", lazy="selectin")
+    ai_config: Mapped["AIConfig"] = relationship(back_populates="channel", lazy="selectin")
 
 
 class ChannelLog(Base):

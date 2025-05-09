@@ -1,8 +1,7 @@
 
 GENERAL = """
-Write an engaging, well-structured, and natural-sounding post in English.
-The post should be clear, relevant, and appealing to the target audience. Use a natural, human-like tone — avoid sounding like AI.
-If appropriate, include emojis, paragraphs, bullet points, or headings for better readability.
+Write an engaging, well-structured, and natural-sounding post.
+The post should be clear, relevant, and appealing to the target audience.
 Do not invent facts or add anything not included in the source content.
 Format: a complete post ready to publish.
 """

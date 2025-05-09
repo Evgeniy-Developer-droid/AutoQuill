@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio.session import AsyncSession
 from app.ai import queries as ai_queries
 from uuid import uuid4
 from app import config
+from app.ai.utils import add_ai_config_prompt
 from app.auth import auth as auth_tools
 from app.celery_tasks import ai_generate_post_task, proceed_upload_file_task
 from app.channels import queries as channel_queries
@@ -47,12 +48,12 @@ async def upload_file(
         "company_id": user.company_id,
         "source_type": "file",
         "source_metadata": {
-            "file_name": filename,
+            "file_name": file.filename,
             "file_type": file.content_type
         },
     }
     proceed_upload_file_task.delay(file_path, credentials)
-    return {"message": f"File {filename} uploaded successfully. File will be processed in background and you will see the result in the channel soon."}
+    return {"message": f"File will be processed in background and you will see the result in the channel soon."}
 
 
 @router.post("/documents", response_model=SuccessResponseSchema)
@@ -118,7 +119,7 @@ async def get_sources(
 
     return {
         "sources": sources,
-        "total_count": total_count
+        "total": total_count
     }
 
 @router.delete("/sources", response_model=SuccessResponseSchema)
@@ -190,6 +191,17 @@ async def generate_posts(
     elif channel.channel_type == "api":
         prompt = prompts.API
 
+    # get ai config
+    ai_config = await ai_queries.get_or_create_ai_config_query(
+        session=session,
+        channel_id=channel_id,
+        company_id=user.company_id,
+    )
+    if not ai_config:
+        raise HTTPException(status_code=404, detail="AI config not found.")
+
+    prompt = await add_ai_config_prompt(prompt, ai_config)
+
     input_values = {
         "additional_kwargs": {
             "prompt": prompt,
@@ -202,3 +214,70 @@ async def generate_posts(
     ai_generate_post_task.delay(input_values)
 
     return {"message": "Added to queue. You will see the post in the channel soon."}
+
+
+@router.get("/ai/config", response_model=ai_schemas.AIConfigOutSchema)
+async def get_ai_config(
+    channel_id: int,
+    user: user_models.User = Depends(auth_tools.get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+):
+    print("Getting AI config...")
+
+    # get channel
+    channel = await channel_queries.get_channel_query(
+        session=session,
+        channel_id=channel_id,
+        company_id=user.company_id
+    )
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found.")
+
+    # get ai config
+    ai_config = await ai_queries.get_or_create_ai_config_query(
+        session=session,
+        channel_id=channel_id,
+        company_id=user.company_id,
+    )
+    if not ai_config:
+        raise HTTPException(status_code=404, detail="AI config not found.")
+
+    return ai_config
+
+
+@router.put("/ai/config", response_model=ai_schemas.AIConfigOutSchema)
+async def update_ai_config(
+    channel_id: int,
+    data: ai_schemas.AIConfigUpdateSchema,
+    user: user_models.User = Depends(auth_tools.get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+):
+    print("Updating AI config...")
+
+    # get channel
+    channel = await channel_queries.get_channel_query(
+        session=session,
+        channel_id=channel_id,
+        company_id=user.company_id
+    )
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found.")
+
+    # get ai config
+    ai_config = await ai_queries.get_or_create_ai_config_query(
+        session=session,
+        channel_id=channel_id,
+        company_id=user.company_id,
+    )
+    if not ai_config:
+        raise HTTPException(status_code=404, detail="AI config not found.")
+
+    # update ai config
+    updated_ai_config = await ai_queries.update_ai_config_query(
+        session=session,
+        company_id=user.company_id,
+        channel_id=channel_id,
+        data=data.model_dump(exclude_none=True),
+    )
+
+    return updated_ai_config
