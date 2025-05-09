@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import ForeignKey, DateTime, JSON
+from sqlalchemy import ForeignKey, DateTime, JSON, ARRAY, Integer, String
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,3 +39,20 @@ class AIConfig(Base):
     custom_instructions: Mapped[str] = mapped_column(nullable=False, server_default="")  # custom instructions for the AI
 
     channel: Mapped["Channel"] = relationship(back_populates="ai_config")
+
+
+class ScheduledAIPost(Base):
+    __tablename__ = "scheduled_ai_posts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"))
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    weekdays: Mapped[str] = mapped_column(ARRAY(Integer), nullable=False) # [0, 1, 2, 3, 4, 5, 6] for all days
+    times: Mapped[str] = mapped_column(ARRAY(String), nullable=False) # ["08:00", "12:00", "18:00"]
+    is_active: Mapped[bool] = mapped_column(nullable=False, server_default="true") # true, false
+    timezone: Mapped[str] = mapped_column(nullable=True, server_default="UTC")  # Timezone of the scheduled time
+    last_run_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+
+    channel: Mapped["Channel"] = relationship(back_populates="scheduled_ai_posts")
+

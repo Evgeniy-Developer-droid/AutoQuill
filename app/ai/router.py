@@ -1,4 +1,7 @@
-from typing import Optional
+from typing import Optional, List
+
+from sympy.assumptions.cnf import Literal
+
 from app.ai import prompts
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from langchain_elasticsearch import ElasticsearchStore
@@ -281,3 +284,123 @@ async def update_ai_config(
     )
 
     return updated_ai_config
+
+
+@router.get("/scheduled-posts", response_model=List[ai_schemas.ScheduledAIPostOutSchema])
+async def get_scheduled_posts(
+    channel_id: int,
+    user: user_models.User = Depends(auth_tools.get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+):
+    print("Getting scheduled posts...")
+
+    # get channel
+    channel = await channel_queries.get_channel_query(
+        session=session,
+        channel_id=channel_id,
+        company_id=user.company_id
+    )
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found.")
+
+    # get scheduled posts
+    scheduled_posts = await ai_queries.get_scheduled_ai_posts_query(
+        session=session,
+        company_id=user.company_id,
+        channel_id=channel_id,
+    )
+
+    return scheduled_posts
+
+
+@router.delete("/scheduled-posts/{scheduled_post_id}", response_model=SuccessResponseSchema)
+async def delete_scheduled_post(
+    scheduled_post_id: int,
+    channel_id: int,
+    user: user_models.User = Depends(auth_tools.get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+):
+    print("Deleting scheduled post...")
+
+    # get channel
+    channel = await channel_queries.get_channel_query(
+        session=session,
+        channel_id=channel_id,
+        company_id=user.company_id
+    )
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found.")
+
+    # delete scheduled post
+    await ai_queries.delete_scheduled_ai_post_query(
+        session=session,
+        scheduled_ai_post_id=scheduled_post_id,
+        company_id=user.company_id,
+    )
+
+    return {"message": "Scheduled post deleted successfully."}
+
+
+@router.post("/scheduled-posts", response_model=ai_schemas.ScheduledAIPostOutSchema)
+async def create_scheduled_post(
+    channel_id: int,
+    data: ai_schemas.ScheduledAIPostInSchema,
+    user: user_models.User = Depends(auth_tools.get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+):
+    print("Creating scheduled post...")
+
+    # get channel
+    channel = await channel_queries.get_channel_query(
+        session=session,
+        channel_id=channel_id,
+        company_id=user.company_id
+    )
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found.")
+
+    data_dict = data.model_dump(exclude_none=True)
+    data_dict["channel_id"] = channel_id
+    data_dict["company_id"] = user.company_id
+    data_dict["timezone"] = data.timezone or user.settings.timezone
+
+    # create scheduled post
+    scheduled_post = await ai_queries.create_scheduled_ai_post_query(
+        session=session,
+        data=data_dict
+    )
+    if not scheduled_post:
+        raise HTTPException(status_code=500, detail="Failed to create scheduled post.")
+
+    return scheduled_post
+
+@router.post("/scheduled-posts/{scheduled_post_id}/{action}", response_model=SuccessResponseSchema)
+async def activate_scheduled_post(
+    scheduled_post_id: int,
+    channel_id: int,
+    action: str = "activate",
+    user: user_models.User = Depends(auth_tools.get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+):
+    print("Activating scheduled post...")
+
+    # get channel
+    channel = await channel_queries.get_channel_query(
+        session=session,
+        channel_id=channel_id,
+        company_id=user.company_id
+    )
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found.")
+
+    # get scheduled post
+    scheduled_post = await ai_queries.update_scheduled_ai_post_query(
+        session=session,
+        scheduled_ai_post_id=scheduled_post_id,
+        company_id=user.company_id,
+        data={"is_active": action == "activate"}
+    )
+    if not scheduled_post:
+        raise HTTPException(status_code=404, detail="Scheduled post not found.")
+    return {"message": "Scheduled post updated successfully."}
+

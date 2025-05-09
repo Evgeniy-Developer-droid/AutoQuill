@@ -91,4 +91,6 @@ def init_admin(app):
     admin.add_view(admin_models.ChannelAdmin)
     admin.add_view(admin_models.PostAdmin)
     admin.add_view(admin_models.SourceAdmin)
+    admin.add_view(admin_models.AIConfigAdmin)
+    admin.add_view(admin_models.ScheduledAIPostAdmin)
     return admin

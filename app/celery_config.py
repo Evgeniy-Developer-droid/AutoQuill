@@ -1,19 +1,21 @@
+from celery.schedules import crontab
+
 broker_url = 'redis://redis:6379/0'
 result_backend = 'redis://redis:6379/0'
 timezone = 'UTC'
 imports = ('app.celery_tasks',)
 
 beat_schedule = {
-    'say-hello-every-30-seconds': {
-        'task': 'app.celery_tasks.scheduled_hello',
-        'schedule': 30.0,
-    },
     'remove-old-channel-logs-every-day': {
         'task': 'app.celery_tasks.remove_old_channel_logs',
-        'schedule': 86400.0,  # 24 hours in seconds
+        'schedule': crontab(hour=0, minute=0),
     },
-    'celery-get-posts-for-loop-every-30-seconds': {
+    'celery-get-posts-for-loop-every-minute': {
         'task': 'app.celery_tasks.celery_get_posts_for_loop',
-        'schedule': 30.0,
+        'schedule': crontab(minute='*/1'),  # every minute
+    },
+    'celery-scheduled-ai-post-every-minute': {
+        'task': 'app.celery_tasks.scheduled_ai_post_task',
+        'schedule': crontab(minute='*/1'),  # every minute
     },
 }

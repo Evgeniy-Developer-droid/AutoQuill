@@ -2,16 +2,19 @@ from uuid import uuid4
 
 import arrow
 import fitz
+import pytz
 from celery import Celery
 from celery.utils.log import get_task_logger
 from pathlib import Path
 
 from langchain_huggingface import HuggingFaceEmbeddings
 import os, sys
-from app.ai import schemas as ai_schemas
+from app.ai import schemas as ai_schemas, prompts
 from langchain_elasticsearch import ElasticsearchStore
 from langchain_text_splitters import CharacterTextSplitter
 from app.ai import queries as ai_queries
+from app.ai.utils import add_ai_config_prompt
+from app.channels import queries as channel_queries
 from app import config
 from app.ai.graph import PostGraph
 from app.database import async_session_maker
@@ -32,12 +35,6 @@ embedding_model = HuggingFaceEmbeddings(
 )
 
 logger = get_task_logger(__name__)
-
-@celery_app.task
-def scheduled_hello():
-    logger.info(f"Now: {datetime.now()}")
-    logger.info(f"Now in UTC: {datetime.now(tz=timezone.utc)}")
-    logger.info("Scheduled Hello from Celery Beat!")
 
 
 @celery_app.task
@@ -241,3 +238,143 @@ def proceed_upload_file_task(file_path, credentials):
     loop = asyncio.get_event_loop()
     loop.run_until_complete(proceed_upload_file())
 
+
+@celery_app.task
+def ai_generate_scheduled_post_task(data: dict, draft: bool = False):
+    # validate data
+    if not isinstance(data, dict):
+        raise ValueError("Data must be a dictionary.")
+
+    if "channel_id" not in data or "company_id" not in data:
+        raise ValueError("Data must contain 'channel_id' and 'company_id'.")
+    async def ai_generate_scheduled_post():
+        async with async_session_maker() as session:
+            channel = await channel_queries.get_channel_query(
+                channel_id=data["channel_id"],
+                company_id=data["company_id"],
+                session=session,
+            )
+            if not channel:
+                raise ValueError("Channel not found.")
+
+            prompt = prompts.GENERAL
+            if channel.channel_type == "telegram":
+                prompt = prompts.TELEGRAM
+            elif channel.channel_type == "api":
+                prompt = prompts.API
+
+            scheduler = await ai_queries.get_scheduled_ai_post_by_id_query(
+                session=session,
+                scheduled_ai_post_id=data["scheduler_id"],
+                company_id=data["company_id"],
+            )
+            if not scheduler:
+                raise ValueError("Scheduler not found.")
+
+            # get ai config
+            ai_config = await ai_queries.get_or_create_ai_config_query(
+                session=session,
+                channel_id=data["channel_id"],
+                company_id=data["company_id"],
+            )
+            if not ai_config:
+                raise ValueError("AI config not found.")
+
+            prompt = await add_ai_config_prompt(prompt, ai_config)
+
+            input_values = {
+                "additional_kwargs": {
+                    "prompt": prompt,
+                    "channel_id": data["channel_id"],
+                    "company_id": data["company_id"],
+                    "topic": None,
+                    "random": True
+                }
+            }
+            try:
+                result = await post_graph.ainvoke(input_values)
+                if "additional_kwargs" in result and "response" in result["additional_kwargs"]:
+                    response = result["additional_kwargs"]["response"]
+                    if isinstance(response, str) and len(response) > 0:
+                        await create_post_query(
+                            data={
+                                "channel_id": data["channel_id"],
+                                "company_id": data["company_id"],
+                                "content": response,
+                                "ai_generated": True,
+                                "timezone": scheduler.timezone,
+                                "scheduled_time": datetime.now(),
+                                "status": "scheduled" if not draft else "draft",
+                            },
+                            session=session,
+                        )
+                        await create_channel_log_query(
+                            data={
+                                "channel_id": data["channel_id"],
+                                "message": f"AI generated post successfully.",
+                            },
+                            session=session,
+                        )
+                        await ai_queries.update_scheduled_ai_post_query(
+                            session=session,
+                            scheduled_ai_post_id=data["scheduler_id"],
+                            data={"last_run_at": datetime.now()},
+                            company_id=data["company_id"],
+                        )
+                    else:
+                        await create_channel_log_query(
+                            data={
+                                "channel_id": data["channel_id"],
+                                "message": f"Sorry, I couldn't generate a post by topic {input_values['additional_kwargs']['topic']}. Please try again.",
+                            },
+                            session=session,
+                        )
+                else:
+                    await create_channel_log_query(
+                        data={
+                            "channel_id": data["channel_id"],
+                            "message": f"Sorry, I couldn't generate a post by topic {input_values['additional_kwargs']['topic']}. Please try again.",
+                        },
+                        session=session,
+                    )
+            except Exception as e:
+                logger.error(f"Error in ai_generate_scheduled_post: {e}")
+                await create_channel_log_query(
+                    data={
+                        "channel_id": data["channel_id"],
+                        "message": f"Error while generating post, try again later. Topic: {input_values['additional_kwargs']['topic']}.",
+                    },
+                    session=session,
+                )
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(ai_generate_scheduled_post())
+
+
+@celery_app.task
+def scheduled_ai_post_task():
+
+    async def scheduled_ai_post():
+        now = datetime.now()
+        async with async_session_maker() as session:
+            try:
+                schedulers = await ai_queries.get_all_scheduled_ai_posts_query(
+                    session=session,
+                )
+                for scheduler in schedulers:
+                    tz_info = pytz.timezone(scheduler.timezone)
+                    now_local = now.astimezone(tz_info)
+                    current_weekday_local = now_local.weekday()
+                    current_time_local = now_local.strftime("%H:%M")
+                    if current_weekday_local in scheduler.weekdays and current_time_local in scheduler.times:
+                        ai_generate_scheduled_post_task.delay({
+                            "scheduler_id": scheduler.id,
+                            "channel_id": scheduler.channel_id,
+                            "company_id": scheduler.company_id
+                        })
+
+            except Exception as e:
+                logger.error(f"Error in scheduled_ai_post: {e}")
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(scheduled_ai_post())

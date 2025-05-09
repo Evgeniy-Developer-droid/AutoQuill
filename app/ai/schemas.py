@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Dict, Any, Literal
+from typing import Optional, Dict, Any, Literal, List
 
 from pydantic import BaseModel, field_validator
 
@@ -92,4 +92,35 @@ class AIConfigUpdateSchema(BaseModel):
         return value
 
 
+class ScheduledAIPostInSchema(BaseModel):
+    weekdays: List[int]  # [0, 1, 2, 3, 4, 5, 6] for all days
+    times: List[str]  # ["08:00", "12:00", "18:00"]
+    is_active: bool = True
+    timezone: Optional[str] = None
+
+    @field_validator("weekdays")
+    @classmethod
+    def validate_weekdays(cls, value):
+        if not all(0 <= day <= 6 for day in value):
+            raise ValueError("Weekdays must be between 0 and 6.")
+        return value
+
+    @field_validator("times")
+    @classmethod
+    def validate_times(cls, value):
+        if not all(isinstance(time, str) and len(time) == 5 and time[2] == ":" for time in value):
+            raise ValueError("Times must be in HH:MM format.")
+        return value
+
+
+class ScheduledAIPostOutSchema(BaseModel):
+    id: int
+    weekdays: List[int]  # [0, 1, 2, 3, 4, 5, 6] for all days
+    times: List[str]  # ["08:00", "12:00", "18:00"]
+    is_active: bool = True
+    last_run_at: datetime
+
+    class Config:
+        orm_mode = True
+        use_enum_values = True
 

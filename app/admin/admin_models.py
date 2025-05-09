@@ -3,7 +3,7 @@ from app.users.models import User, UserSetting, Company
 from app.auth.models import AuthSession
 from app.channels.models import Channel
 from app.posts.models import Post
-from app.ai.models import Source
+from app.ai.models import Source, AIConfig, ScheduledAIPost
 
 
 class AdminModelView(ModelView):
@@ -78,6 +78,30 @@ class SourceAdmin(AdminModelView, model=Source):
     ]
     column_searchable_list = [Source.id, Source.channel_id, Source.company_id, Source.document_id]
     column_filters = [Source.channel_id, Source.company_id]
+
+
+class AIConfigAdmin(AdminModelView, model=AIConfig):
+    column_list = [
+        AIConfig.id,
+        AIConfig.channel_id,
+        AIConfig.company_id,
+        AIConfig.created_at,
+    ]
+    column_searchable_list = [AIConfig.id, AIConfig.channel_id, AIConfig.company_id]
+    column_filters = [AIConfig.channel_id, AIConfig.company_id]
+
+
+class ScheduledAIPostAdmin(AdminModelView, model=ScheduledAIPost):
+    column_list = [
+        ScheduledAIPost.id,
+        ScheduledAIPost.channel_id,
+        ScheduledAIPost.company_id,
+        ScheduledAIPost.weekdays,
+        ScheduledAIPost.times,
+        ScheduledAIPost.is_active,
+    ]
+    column_searchable_list = [ScheduledAIPost.id, ScheduledAIPost.channel_id, ScheduledAIPost.company_id]
+    column_filters = [ScheduledAIPost.channel_id, ScheduledAIPost.company_id]
 
 
 

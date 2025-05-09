@@ -43,13 +43,39 @@ def retriever_node(state):
     topic = state["additional_kwargs"].get("topic", "No topic")
     channel_id = state["additional_kwargs"]["channel_id"]
     company_id = state["additional_kwargs"]["company_id"]
-    docs = vectorstore.similarity_search(
-        query=topic,
-        k=3,
-        filter=[{"term": {"channel_id": channel_id}}, {"term": {"company_id": company_id}}],
-    )
-    print(f"Found {len(docs)} documents for topic '{topic}' in channel '{channel_id}' and company '{company_id}'")
-    context = "\n\n".join([doc.page_content for doc in docs])
+    if "random" in state["additional_kwargs"] and state["additional_kwargs"]["random"]:
+        docs = es.search(
+            index="documents",
+            body={
+                "query": {
+                    "function_score": {
+                        "query": {
+                            "bool": {
+                                "must": [
+                                    {"term": {"channel_id": channel_id}},
+                                    {"term": {"company_id": company_id}},
+                                ]
+                            }
+                        },
+                        "random_score": {},
+                    }
+                },
+                "size": 3,
+            },
+        )
+        docs = [doc["_source"] for doc in docs["hits"]["hits"]]
+        print(f"{len(docs)} random documents found for topic '{topic}' in channel '{channel_id}' and company '{company_id}'")
+        print(docs)
+        context = "\n\n".join([doc["text"] for doc in docs])
+    else:
+        docs = vectorstore.similarity_search(
+            query=topic,
+            k=3,
+            filter=[{"term": {"channel_id": channel_id}}, {"term": {"company_id": company_id}}],
+        )
+        print(f"Found {len(docs)} documents for topic '{topic}' in channel '{channel_id}' and company '{company_id}'")
+        print(docs)
+        context = "\n\n".join([doc.page_content for doc in docs])
     state["additional_kwargs"]["context"] = context
     return state
 
