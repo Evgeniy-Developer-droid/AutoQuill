@@ -52,6 +52,7 @@ services:
     depends_on:
       - db
       - elasticsearch
+      - redis
 
   celery_worker:
     build:
@@ -75,8 +76,13 @@ services:
 
   redis:
     image: redis:7
+    container_name: redis
+    command: [ "redis-server", "--requirepass", "${REDIS_PASSWORD}" ]
+    volumes:
+      - /mnt/data/redis:/data
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
+    restart: unless-stopped
 
 
 volumes:

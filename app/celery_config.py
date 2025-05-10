@@ -1,7 +1,8 @@
 from celery.schedules import crontab
+from app import config
 
-broker_url = 'redis://redis:6379/0'
-result_backend = 'redis://redis:6379/0'
+broker_url = config.CELERY_BROKER_URL
+result_backend = config.CELERY_RESULT_BACKEND
 timezone = 'UTC'
 imports = ('app.celery_tasks',)
 
