@@ -28,3 +28,15 @@ class UserSchema(BaseModel):
         orm_mode = True
         use_enum_values = True
 
+
+
+class DashboardOutSchemas(BaseModel):
+    all_channels_count: int
+    all_posts_count: int
+    all_ai_generated_posts_count: int
+    last_channels: list[dict[str, Any]]
+    last_posts: list[dict[str, Any]]
+    last_channel_logs: list[dict[str, Any]]
+
+    class Config:
+        orm_mode = True

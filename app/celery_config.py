@@ -19,4 +19,8 @@ beat_schedule = {
         'task': 'app.celery_tasks.scheduled_ai_post_task',
         'schedule': crontab(minute='*/1'),  # every minute
     },
+    'celery-check-expired-subscription-task': {
+        'task': 'app.celery_tasks.check_expired_subscription_task',
+        'schedule': crontab(hour=0, minute=0),
+    },
 }

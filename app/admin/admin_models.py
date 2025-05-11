@@ -4,6 +4,7 @@ from app.auth.models import AuthSession
 from app.channels.models import Channel
 from app.posts.models import Post
 from app.ai.models import Source, AIConfig, ScheduledAIPost
+from app.billing.models import Plan, Usage, Referral, Payment
 
 
 class AdminModelView(ModelView):
@@ -104,5 +105,53 @@ class ScheduledAIPostAdmin(AdminModelView, model=ScheduledAIPost):
     column_filters = [ScheduledAIPost.channel_id, ScheduledAIPost.company_id]
 
 
+class PlanAdmin(AdminModelView, model=Plan):
+    column_list = [
+        Plan.id,
+        Plan.name,
+        Plan.price,
+        Plan.send_post_limit,
+        Plan.ai_generation_limit,
+        Plan.channels_limit,
+        Plan.is_active,
+        Plan.is_trial,
+    ]
+    column_searchable_list = [Plan.id, Plan.name]
+    column_filters = [Plan.name, Plan.is_active]
+
+
+class UsageAdmin(AdminModelView, model=Usage):
+    column_list = [
+        Usage.id,
+        Usage.company_id,
+        Usage.action_type,
+        Usage.created_at,
+    ]
+    column_searchable_list = [Usage.id, Usage.company_id, Usage.action_type]
+    column_filters = [Usage.company_id, Usage.action_type]
+
+
+class ReferralAdmin(AdminModelView, model=Referral):
+    column_list = [
+        Referral.id,
+        Referral.referrer_id,
+        Referral.referred_id,
+        Referral.reward_given,
+    ]
+    column_searchable_list = [Referral.id, Referral.referrer_id, Referral.referred_id]
+    column_filters = [Referral.referrer_id, Referral.referred_id]
+
+
+class PaymentAdmin(AdminModelView, model=Payment):
+    column_list = [
+        Payment.id,
+        Payment.company_id,
+        Payment.amount,
+        Payment.description,
+        Payment.is_successful,
+        Payment.created_at,
+    ]
+    column_searchable_list = [Payment.id, Payment.company_id, Payment.amount]
+    column_filters = [Payment.company_id, Payment.amount]
 
 

@@ -85,6 +85,21 @@ async def get_channels_query(company_id: int, page: int, limit: int, session: As
         return [], 0
 
 
+async def get_last_channels_query(company_id: int, limit: int, session: AsyncSession) -> List[Channel]:
+    try:
+        stmt = (
+            select(Channel)
+            .where(Channel.company_id == company_id)
+            .order_by(Channel.created_at.desc())
+            .limit(limit)
+        )
+        result = await session.execute(stmt)
+        return result.scalars().all()
+    except Exception as e:
+        traceback.print_exc()
+        return []
+
+
 async def create_channel_log_query(data: dict, session: AsyncSession) -> ChannelLog:
     try:
         stmt = insert(ChannelLog).values(**data).returning(ChannelLog)
@@ -134,3 +149,31 @@ async def delete_channel_logs_by_before_date_query(before_date: datetime, sessio
         traceback.print_exc()
         return False
 
+
+async def get_count_all_channels_query(company_id: int, session: AsyncSession) -> int:
+    try:
+        stmt = (
+            select(func.count(Channel.id))
+            .where(Channel.company_id == company_id)
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one()
+    except Exception as e:
+        traceback.print_exc()
+        return 0
+
+
+async def get_last_channels_logs_query(company_id: int, limit: int, session: AsyncSession) -> List[ChannelLog]:
+    try:
+        stmt = (
+            select(ChannelLog)
+            .join(Channel)
+            .where(Channel.company_id == company_id)
+            .order_by(ChannelLog.created_at.desc())
+            .limit(limit)
+        )
+        result = await session.execute(stmt)
+        return result.scalars().all()
+    except Exception as e:
+        traceback.print_exc()
+        return []

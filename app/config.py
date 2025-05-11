@@ -34,5 +34,12 @@ REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 CELERY_BROKER_URL = f"redis://:{REDIS_PASSWORD}@redis:6379/0"
 CELERY_RESULT_BACKEND = f"redis://:{REDIS_PASSWORD}@redis:6379/0"
 
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+LIQPAY_SANDBOX = bool(int(os.getenv("LIQPAY_SANDBOX", "0")))
+LIQPAY_PUBLIC_KEY = os.getenv("LIQPAY_PUBLIC_KEY")
+LIQPAY_PRIVATE_KEY = os.getenv("LIQPAY_PRIVATE_KEY")
+
 
 

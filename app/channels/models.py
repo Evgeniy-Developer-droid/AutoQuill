@@ -1,11 +1,14 @@
 from datetime import datetime
-from sqlalchemy import ForeignKey, DateTime, JSON
+from typing import List, Optional
+
+from sqlalchemy import ForeignKey, DateTime, JSON, select, String
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
+import uuid
 from app.database import Base
 from app.posts.models import Post
 from app.ai.models import Source, AIConfig, ScheduledAIPost
+from app.database import async_session_maker
 
 
 class Channel(Base):
@@ -19,7 +22,7 @@ class Channel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(), server_default=func.now())
 
     company: Mapped["Company"] = relationship(back_populates="channels", lazy="selectin")
-    posts: Mapped["Post"] = relationship(back_populates="channel", lazy="selectin")
+    posts: Mapped[List[Post]] = relationship(back_populates="channel", lazy="selectin")
     logs: Mapped["ChannelLog"] = relationship(back_populates="channel", lazy="selectin")
     sources: Mapped["Source"] = relationship(back_populates="channel", lazy="selectin")
     ai_config: Mapped["AIConfig"] = relationship(back_populates="channel", lazy="selectin")

@@ -15,6 +15,7 @@ from app.manager import init_superuser
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from app.ai.router import router as ai_router
+from app.billing.webhooks import router as webhooks_router
 
 
 async def create_elasticsearch_indices():
@@ -84,6 +85,8 @@ app.include_router(users_router, prefix="/api/v1/users", tags=["users"])
 app.include_router(channels_router, prefix="/api/v1/channels", tags=["channels"])
 app.include_router(posts_router, prefix="/api/v1/posts", tags=["posts"])
 app.include_router(ai_router, prefix="/api/v1/ai", tags=["ai"])
+
+app.include_router(webhooks_router, prefix="/webhooks", tags=["webhooks"])
 
 init_admin(app)
 

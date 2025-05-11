@@ -11,6 +11,7 @@ from uuid import uuid4
 from app import config
 from app.ai.utils import add_ai_config_prompt
 from app.auth import auth as auth_tools
+from app.billing.services.usage import check_and_consume_usage
 from app.celery_tasks import ai_generate_post_task, proceed_upload_file_task
 from app.channels import queries as channel_queries
 from app.schemas import SuccessResponseSchema
@@ -202,6 +203,12 @@ async def generate_posts(
     )
     if not ai_config:
         raise HTTPException(status_code=404, detail="AI config not found.")
+
+    await check_and_consume_usage(
+        db=session,
+        company=user.company,
+        action="ai"
+    )
 
     prompt = await add_ai_config_prompt(prompt, ai_config)
 

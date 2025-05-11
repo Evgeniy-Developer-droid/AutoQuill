@@ -16,6 +16,13 @@ class Base(AsyncAttrs, DeclarativeBase):
     def __tablename__(cls) -> str:
         return f"{cls.__name__.lower()}s"
 
+    def to_dict(self) -> dict:
+        """
+        Convert the SQLAlchemy model instance to a dictionary.
+        This method is useful for returning JSON responses.
+        """
+        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+
 
 async def get_session() -> AsyncSession:
     async with async_session_maker() as session:

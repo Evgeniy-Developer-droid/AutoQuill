@@ -100,3 +100,44 @@ async def celery_get_posts_for_loop_query(end_date: datetime, session: AsyncSess
         traceback.print_exc()
         return []
 
+
+async def get_last_posts_query(company_id: int, limit: int, session: AsyncSession) -> List[Post]:
+    try:
+        stmt = (
+            select(Post)
+            .where(Post.company_id == company_id)
+            .order_by(Post.created_at.desc())
+            .limit(limit)
+        )
+        result = await session.execute(stmt)
+        return result.scalars().all()
+    except Exception as e:
+        traceback.print_exc()
+        return []
+
+
+async def get_all_posts_count_query(company_id: int, session: AsyncSession) -> List[int]:
+    try:
+        stmt = (
+            select(func.count(Post.id))
+            .where(Post.company_id == company_id)
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one()
+    except Exception as e:
+        traceback.print_exc()
+        return 0
+
+
+async def get_all_posts_ai_generated_count_query(company_id: int, session: AsyncSession) -> List[int]:
+    try:
+        stmt = (
+            select(func.count(Post.id))
+            .where(Post.company_id == company_id)
+            .where(Post.ai_generated == True)
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one()
+    except Exception as e:
+        traceback.print_exc()
+        return 0

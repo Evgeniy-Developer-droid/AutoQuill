@@ -1,8 +1,13 @@
+import uuid
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from app.auth import auth as auth_tools
 from app.auth import models as auth_models, queries as auth_queries, schemas as auth_schemas
 from app.users import models as user_models, queries as user_queries, schemas as user_schemas
+from app.billing import models as billing_models
+from app.billing import queries as billing_queries
 from uuid import uuid4
 from app import config, schemas as base_schemas
 from app.database import get_session
@@ -19,12 +24,31 @@ router = APIRouter()
 )
 async def register_api(
     user_data: auth_schemas.RegisterUserInSchema,
+    referral_code: Optional[str] = None,
     db_session: AsyncSession = Depends(get_session),
 ):
 
+    trial_plan = await billing_queries.get_or_create_trial_plan_query(db_session)
+    if not trial_plan:
+        raise HTTPException(status_code=400, detail="Something went wrong. Please try again.")
+
+    unique_code = str(uuid.uuid4())[:8]
+
+    referred_by_id = None
+    if referral_code:
+        company = await user_queries.get_company_by_referral_code_query(referral_code, db_session)
+        if not company:
+            raise HTTPException(status_code=400, detail="Referral code is invalid")
+        referred_by_id = company.id
+
     company_data_dict = {
-        "name": user_data.email
+        "name": user_data.email,
+        "current_plan_id": trial_plan.id,
+        "plan_started_at": datetime.now(),
+        "referral_code": unique_code,
+        "referred_by_id": referred_by_id,
     }
+
     company = await user_queries.create_company(company_data_dict, db_session)
     if not company:
         raise HTTPException(status_code=400, detail="Something went wrong")
@@ -33,13 +57,26 @@ async def register_api(
     user_data_dict["password"] = await auth_tools.hash_password(user_data_dict["password"])
     user_data_dict["is_active"] = True
     user_data_dict["company_id"] = company.id
+    timezone = user_data_dict.pop("timezone")
     user = await user_queries.create_user(user_data_dict, db_session)
     if not user:
         raise HTTPException(status_code=400, detail="Email already exist")
     # settings
     user_settings = await user_queries.create_user_settings(
-        {"user_id": user.id}, db_session
+        {
+            "user_id": user.id,
+            "timezone": timezone,
+         }, db_session
     )
+    if referred_by_id:
+        await billing_queries.create_referral_query(
+            db_session,
+            {
+                "referrer_id": referred_by_id,
+                "referred_id": company.id,
+                "reward_given": False,
+            },
+        )
 
     return {"message": "Success!"}
 
@@ -67,6 +104,11 @@ async def login_api(
     )
     access_token = auth_tools.create_access_token({"jti": token, "sub": user.email})
     refresh_token = auth_tools.create_refresh_token({"jti": token, "sub": user.email})
+    await user_queries.update_user_query(
+        user.id,
+        {"last_login": datetime.now()},
+        db_session,
+    )
     return {"access_token": access_token, "refresh_token": refresh_token}
 
 

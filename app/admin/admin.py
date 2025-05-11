@@ -93,4 +93,11 @@ def init_admin(app):
     admin.add_view(admin_models.SourceAdmin)
     admin.add_view(admin_models.AIConfigAdmin)
     admin.add_view(admin_models.ScheduledAIPostAdmin)
+
+    # billing
+    admin.add_view(admin_models.PlanAdmin)
+    admin.add_view(admin_models.UsageAdmin)
+    admin.add_view(admin_models.ReferralAdmin)
+    admin.add_view(admin_models.PaymentAdmin)
+
     return admin

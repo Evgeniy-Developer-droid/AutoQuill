@@ -1,3 +1,4 @@
+from select import select
 from uuid import uuid4
 
 import arrow
@@ -6,14 +7,18 @@ import pytz
 from celery import Celery
 from celery.utils.log import get_task_logger
 from pathlib import Path
-
 from langchain_huggingface import HuggingFaceEmbeddings
 import os, sys
+from app.billing import queries as billing_queries
+from app.billing.models import Payment, Plan
+from app.billing.services.referral import process_referral_reward
+from app.posts import queries as post_queries
 from app.ai import schemas as ai_schemas, prompts
 from langchain_elasticsearch import ElasticsearchStore
 from langchain_text_splitters import CharacterTextSplitter
 from app.ai import queries as ai_queries
 from app.ai.utils import add_ai_config_prompt
+from app.billing.services.usage import check_and_consume_usage
 from app.channels import queries as channel_queries
 from app import config
 from app.ai.graph import PostGraph
@@ -24,6 +29,7 @@ from app.posts.queries import create_post_query
 from app.channels.queries import delete_channel_logs_by_before_date_query, create_channel_log_query
 from app.posts.queries import celery_get_posts_for_loop_query
 from app.providers import telegram
+from app.users.models import Company
 
 celery_app = Celery("tasks")
 celery_app.config_from_object("app.celery_config")
@@ -60,6 +66,26 @@ def celery_get_posts_for_loop():
                 session=session,
             )
             for post in posts:
+                success, message = await check_and_consume_usage(
+                    db=session,
+                    company=post.channel.company,
+                    action="post",
+                    raise_exception=False,
+                )
+                if not success:
+                    await create_channel_log_query(
+                        data={
+                            "channel_id": post.channel_id,
+                            "message": f"Post not sent. {message}",
+                        },
+                        session=session,
+                    )
+                    await post_queries.update_post_query(
+                        session=session,
+                        post_id=post.id,
+                        data={"status": "failed"},
+                    )
+                    continue
                 provider = None
                 if post.channel.channel_type == "telegram":
                     provider = telegram.Telegram(post)
@@ -74,6 +100,7 @@ def celery_get_posts_for_loop():
 
 @celery_app.task
 def ai_generate_post_task(input_values):
+    # !!!!! check and consume usage relized in router
     async def ai_generate_post():
         nonlocal input_values
         async with async_session_maker() as session:
@@ -257,6 +284,23 @@ def ai_generate_scheduled_post_task(data: dict, draft: bool = False):
             if not channel:
                 raise ValueError("Channel not found.")
 
+            # check and consume usage
+            success, message = await check_and_consume_usage(
+                db=session,
+                company=channel.company,
+                action="ai",
+                raise_exception=False,
+            )
+            if not success:
+                await create_channel_log_query(
+                    data={
+                        "channel_id": data["channel_id"],
+                        "message": f"AI generation failed. {message}",
+                    },
+                    session=session,
+                )
+                return
+
             prompt = prompts.GENERAL
             if channel.channel_type == "telegram":
                 prompt = prompts.TELEGRAM
@@ -378,3 +422,96 @@ def scheduled_ai_post_task():
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(scheduled_ai_post())
+
+
+@celery_app.task
+def liqpay_callback_task(data: dict):
+    async def liqpay_callback():
+        async with async_session_maker() as session:
+            try:
+                status = data.get("status")
+                order_id = data.get("order_id")
+                amount = float(data.get("amount"))
+                company_id = int(order_id.split("-")[0])
+                plan_id = int(order_id.split("-")[-1])
+
+                if status in ("subscribed", "success", "sandbox"):
+                    result = await session.execute(select(Company).where(Company.id == company_id))
+                    company: Company = result.scalar()
+
+                    if not company:
+                        logger.error(f"Company with id {company_id} not found.")
+                        return None
+
+                    result = await session.execute(
+                        select(Payment).where(Payment.order_id == order_id)
+                    )
+                    existing = result.scalar()
+                    if existing:
+                        logger.error(f"Payment with order_id {order_id} already exists.")
+                        return None
+
+                    payment = Payment(
+                        company_id=company.id,
+                        amount=int(amount),
+                        order_id=order_id,
+                        description=data.get("description"),
+                        is_successful=True,
+                        payment_service="liqpay",
+                    )
+                    session.add(payment)
+
+                    plan = await session.scalar(select(Plan).where(Plan.id == plan_id))
+                    if plan.id != company.current_plan_id:
+                        company.current_plan_id = plan.id
+                        company.plan_started_at = datetime.now()
+                    company.last_payment_at = datetime.now()
+                    company.subscription_valid_until = datetime.now() + timedelta(days=30)
+                    company.payment_service = "liqpay"
+
+                    await process_referral_reward(session, referred_company_id=company.id)
+                    await session.commit()
+                elif status in ("failure", "error", "reversed"):
+                    trial_plan = await billing_queries.get_or_create_trial_plan_query(session)
+                    result = await session.execute(select(Company).where(Company.id == company_id))
+                    company = result.scalar()
+                    company.current_plan_id = trial_plan.id if trial_plan else None
+                    company.plan_started_at = datetime.now()
+                    company.subscription_valid_until = None
+                    company.payment_service = ""
+                    company.last_payment_at = None
+                    await session.commit()
+
+                return None
+            except Exception as e:
+                logger.error(f"Error in liqpay_callback: {e}")
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(liqpay_callback())
+
+
+@celery_app.task
+def check_expired_subscription_task():
+    async def check_expired_subscription():
+        async with async_session_maker() as session:
+            try:
+                now = datetime.now()
+                companies = await session.execute(
+                    select(Company).where(
+                        Company.subscription_valid_until < now,
+                        Company.subscription_valid_until.isnot(None),
+                    )
+                )
+                for company in companies.scalars():
+                    trial_plan = await billing_queries.get_or_create_trial_plan_query(session)
+                    company.current_plan_id = trial_plan.id if trial_plan else None
+                    company.plan_started_at = datetime.now()
+                    company.subscription_valid_until = None
+                    company.payment_service = ""
+                    company.last_payment_at = None
+                await session.commit()
+            except Exception as e:
+                logger.error(f"Error in check_expired_subscription: {e}")
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(check_expired_subscription())

@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from app.auth import auth as auth_tools
+from app.billing.models import ActionType
+from app.billing.services.usage import check_and_consume_usage
 from app.posts import queries as post_queries
 from app.posts import schemas as post_schemas
 from app.schemas import SuccessResponseSchema
@@ -135,6 +137,12 @@ async def send_post(
 
     if not provider:
         raise HTTPException(status_code=404, detail="Post not found")
+
+    await check_and_consume_usage(
+        db=session,
+        company=user.company,
+        action=ActionType.POST,
+    )
 
     result = await provider.send()
     if not result:

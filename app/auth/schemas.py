@@ -21,6 +21,7 @@ class RegisterUserInSchema(BaseModel):
     email: EmailStr
     full_name: Optional[str]
     password: str
+    timezone: Optional[str] = None
 
     @field_validator("password")
     @classmethod
