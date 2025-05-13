@@ -28,8 +28,10 @@ jobs:
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
           script: |
-            sudo docker stop $(sudo docker ps -a -q)
-            sudo docker system prune -a
+            cd AutoQuill
+            sudo docker compose -f docker-compose.prod.yaml down --remove-orphans
+            sudo docker image prune -f
+            cd ..
             rm -rf AutoQuill
             git clone git@github.com:Evgeniy-Developer-droid/AutoQuill.git
             cd AutoQuill
