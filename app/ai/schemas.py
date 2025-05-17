@@ -5,7 +5,9 @@ from pydantic import BaseModel, field_validator
 
 
 class DocumentInSchema(BaseModel):
-    text: Optional[str]
+    text: str
+    title: str
+
 
 
 class ES_Document(BaseModel):

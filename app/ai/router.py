@@ -77,7 +77,7 @@ async def upload_document(
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found.")
 
-    filename = f"{uuid4().hex}.txt"
+    filename = f"{data.title.replace(' ', '_')}{uuid4().hex[:5]}.txt"
     file_path = f"{config.UPLOAD_FOLDER}/{filename}"
     with open(file_path, "w") as f:
         f.write(data.text)

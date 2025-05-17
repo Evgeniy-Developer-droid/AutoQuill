@@ -9,7 +9,7 @@ imports = ('app.celery_tasks',)
 beat_schedule = {
     'remove-old-channel-logs-every-day': {
         'task': 'app.celery_tasks.remove_old_channel_logs',
-        'schedule': crontab(hour=0, minute=0),
+        'schedule': crontab(hour=0, minute=0), # every day at midnight
     },
     'celery-get-posts-for-loop-every-minute': {
         'task': 'app.celery_tasks.celery_get_posts_for_loop',
@@ -21,6 +21,10 @@ beat_schedule = {
     },
     'celery-check-expired-subscription-task': {
         'task': 'app.celery_tasks.check_expired_subscription_task',
+        'schedule': crontab(hour=0, minute=0),
+    },
+    'celery-renew-trials-task': {
+        'task': 'app.celery_tasks.renew_trials_task',
         'schedule': crontab(hour=0, minute=0),
     },
 }

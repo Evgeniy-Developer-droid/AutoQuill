@@ -479,7 +479,7 @@ def liqpay_callback_task(data: dict):
                     company.plan_started_at = datetime.now()
                     company.subscription_valid_until = None
                     company.payment_service = ""
-                    company.last_payment_at = None
+                    company.last_payment_at = datetime.now()
                     await session.commit()
 
                 return None
@@ -502,16 +502,41 @@ def check_expired_subscription_task():
                         Company.subscription_valid_until.isnot(None),
                     )
                 )
+                trial_plan = await billing_queries.get_or_create_trial_plan_query(session)
                 for company in companies.scalars():
-                    trial_plan = await billing_queries.get_or_create_trial_plan_query(session)
                     company.current_plan_id = trial_plan.id if trial_plan else None
                     company.plan_started_at = datetime.now()
                     company.subscription_valid_until = None
                     company.payment_service = ""
-                    company.last_payment_at = None
+                    company.last_payment_at = datetime.now()
                 await session.commit()
             except Exception as e:
                 logger.error(f"Error in check_expired_subscription: {e}")
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(check_expired_subscription())
+
+
+@celery_app.task
+def renew_trials_task():
+    async def renew_trials():
+        async with async_session_maker() as session:
+            try:
+                trial_plan = await billing_queries.get_or_create_trial_plan_query(session)
+                if not trial_plan:
+                    raise ValueError("Trial plan not found.")
+                now = datetime.now()
+                companies = await session.execute(
+                    select(Company).where(
+                        Company.current_plan_id == trial_plan.id,
+                        Company.last_payment_at < now - timedelta(days=30),
+                    )
+                )
+                for company in companies.scalars():
+                    company.last_payment_at = datetime.now()
+                await session.commit()
+            except Exception as e:
+                logger.error(f"Error in renew_trials: {e}")
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(renew_trials())

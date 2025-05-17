@@ -47,6 +47,7 @@ async def register_api(
         "plan_started_at": datetime.now(),
         "referral_code": unique_code,
         "referred_by_id": referred_by_id,
+        "last_payment_at": datetime.now(),
     }
 
     company = await user_queries.create_company(company_data_dict, db_session)
