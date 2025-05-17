@@ -15,7 +15,7 @@ class Channel(Base):
     __tablename__ = "channels"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(nullable=False, server_default="Channel")
     channel_type: Mapped[str] = mapped_column(nullable=False)  # e.g. "telegram", "discord", "api", and so on
     config_json: Mapped[dict] = mapped_column(JSON, nullable=False)  # JSON config for the channel
@@ -33,8 +33,8 @@ class ChannelLog(Base):
     __tablename__ = "channel_logs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"))
-    post_id: Mapped[int] = mapped_column(ForeignKey("posts.id"), nullable=True)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"))
+    post_id: Mapped[int] = mapped_column(ForeignKey("posts.id", ondelete="CASCADE"), nullable=True)
     message: Mapped[str] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(), server_default=func.now())
 

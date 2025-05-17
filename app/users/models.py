@@ -18,11 +18,11 @@ class Company(Base):
     name: Mapped[str] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(), server_default=func.now())
 
-    current_plan_id: Mapped[Optional[int]] = mapped_column(ForeignKey("plans.id"), nullable=True)
+    current_plan_id: Mapped[Optional[int]] = mapped_column(ForeignKey("plans.id", ondelete="SET NULL"), nullable=True)
     plan_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(), nullable=True)
     balance_tokens: Mapped[int] = mapped_column(default=0)
     referral_code: Mapped[str] = mapped_column(String, nullable=True)
-    referred_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("companies.id"), nullable=True)
+    referred_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True)
     last_payment_at: Mapped[Optional[datetime]] = mapped_column(DateTime(), nullable=True)
     subscription_valid_until: Mapped[Optional[datetime]] = mapped_column(DateTime(), nullable=True)
     payment_service: Mapped[str] = mapped_column(String, nullable=True)  # "stripe", "paypal", etc.
@@ -49,7 +49,7 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(default=False)
     role: Mapped[str] = mapped_column(nullable=True, default="owner")
     is_superuser: Mapped[bool] = mapped_column(default=False)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime(), server_default=func.now())
     last_login: Mapped[datetime] = mapped_column(DateTime(), nullable=True)
 
@@ -64,7 +64,7 @@ class UserSetting(Base):
     __tablename__ = "users_setting"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     timezone: Mapped[str] = mapped_column(nullable=True, server_default="UTC")
     user: Mapped["User"] = relationship(back_populates="settings")
 

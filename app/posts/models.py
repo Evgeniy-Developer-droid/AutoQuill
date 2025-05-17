@@ -10,8 +10,8 @@ class Post(Base):
     __tablename__ = "posts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
-    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"))
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"))
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"))
     content: Mapped[str] = mapped_column(nullable=False)  # Content of the post
     ai_generated: Mapped[bool] = mapped_column(default=False)  # Whether the post was AI-generated
     scheduled_time: Mapped[datetime] = mapped_column(DateTime(), nullable=True)  # Time when the post is scheduled to be sent

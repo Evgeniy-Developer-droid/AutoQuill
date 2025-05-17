@@ -10,8 +10,8 @@ class Source(Base):
     __tablename__ = "sources"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"))
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"))
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     source_type: Mapped[str] = mapped_column(nullable=False, server_default="file") # file, document
@@ -26,8 +26,8 @@ class AIConfig(Base):
     __tablename__ = "ai_config"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"))
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"))
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     temperature: Mapped[float] = mapped_column(nullable=False, server_default="0") # 0-1
@@ -45,8 +45,8 @@ class ScheduledAIPost(Base):
     __tablename__ = "scheduled_ai_posts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"))
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"))
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     weekdays: Mapped[str] = mapped_column(ARRAY(Integer), nullable=False) # [0, 1, 2, 3, 4, 5, 6] for all days
     times: Mapped[str] = mapped_column(ARRAY(String), nullable=False) # ["08:00", "12:00", "18:00"]

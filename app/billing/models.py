@@ -31,7 +31,7 @@ class Usage(Base):
     __tablename__ = "usages"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
     action_type: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(), server_default=func.now())
 
@@ -42,8 +42,8 @@ class Referral(Base):
     __tablename__ = "referrals"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    referrer_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False)
-    referred_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    referrer_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    referred_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
     reward_given: Mapped[bool] = mapped_column(default=False)
 
     referrer: Mapped["Company"] = relationship(
@@ -58,7 +58,7 @@ class Payment(Base):
     __tablename__ = "payments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
     order_id: Mapped[str] = mapped_column(nullable=True)
     amount: Mapped[int] = mapped_column()
     description: Mapped[str] = mapped_column()
