@@ -12,10 +12,9 @@ from app.posts.router import router as posts_router
 from fastapi.middleware.cors import CORSMiddleware
 from app.admin.admin import init_admin
 from app.manager import init_superuser
-from contextlib import asynccontextmanager
-from fastapi.staticfiles import StaticFiles
 from app.ai.router import router as ai_router
 from app.billing.webhooks import router as webhooks_router
+from app.billing.router import router as billing_router
 
 
 async def create_elasticsearch_indices():
@@ -82,6 +81,7 @@ async def startup_event():
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["users"])
+app.include_router(billing_router, prefix="/api/v1/billing", tags=["billing"])
 app.include_router(channels_router, prefix="/api/v1/channels", tags=["channels"])
 app.include_router(posts_router, prefix="/api/v1/posts", tags=["posts"])
 app.include_router(ai_router, prefix="/api/v1/ai", tags=["ai"])

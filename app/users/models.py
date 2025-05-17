@@ -38,6 +38,9 @@ class Company(Base):
     usages: Mapped["Usage"] = relationship("Usage", back_populates="company", lazy="selectin")
     payments: Mapped["Payment"] = relationship("Payment", back_populates="company", lazy="selectin")
 
+    def __repr__(self) -> str:
+        return f"<Company(id={self.id}, name={self.name}, created_at={self.created_at})>"
+
 
 class User(Base):
     __tablename__ = "users"

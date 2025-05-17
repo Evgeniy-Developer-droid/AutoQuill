@@ -1,4 +1,4 @@
-from app.billing.models import Plan, Referral
+from app.billing.models import Plan, Referral, Payment, Usage
 from datetime import datetime
 from typing import List
 
@@ -49,4 +49,53 @@ async def create_referral_query(
     except Exception as e:
         print(f"Error in create_referral_query: {e}")
         traceback.print_exc()
+
+
+async def get_payments_query(company_id: int, page: int, limit: int, session: AsyncSession) -> tuple[List[Payment], int]:
+    try:
+        page = max(page, 1)
+        stmt = (
+            select(Payment)
+            .where(Payment.company_id == company_id)
+            .offset((page - 1) * limit)
+            .limit(limit).order_by(Payment.created_at.desc())
+        )
+        result = await session.execute(stmt)
+        payments = result.scalars().all()
+
+        count_stmt = (
+            select(func.count(Payment.id))
+            .where(Payment.company_id == company_id)
+        )
+        count_result = await session.execute(count_stmt)
+        total_count = count_result.scalar_one()
+
+        return payments, total_count
+    except Exception as e:
+        traceback.print_exc()
+        return [], 0
+
+async def get_usages_by_company_id_timeframe_query(
+    company_id: int,
+    session: AsyncSession,
+    start_date: datetime = None,
+    end_date: datetime = None
+) -> List[Usage]:
+    try:
+        stmt = (
+            select(Usage)
+            .where(
+                Usage.company_id == company_id,
+            )
+        )
+        if start_date:
+            stmt = stmt.where(Usage.created_at >= start_date)
+        if end_date:
+            stmt = stmt.where(Usage.created_at <= end_date)
+        result = await session.execute(stmt)
+        usages = result.scalars().all()
+        return usages
+    except Exception as e:
+        traceback.print_exc()
+        return []
 
