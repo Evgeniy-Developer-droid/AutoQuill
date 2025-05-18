@@ -29,6 +29,9 @@ class UserSchema(BaseModel):
         use_enum_values = True
 
 
+class UserUpdateSchema(BaseModel):
+    full_name: Optional[str] = None
+
 
 class DashboardOutSchemas(BaseModel):
     all_channels_count: int
@@ -40,3 +43,8 @@ class DashboardOutSchemas(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class PasswordUpdateSchema(BaseModel):
+    old_password: str
+    password: str

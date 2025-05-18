@@ -55,7 +55,7 @@ class PostInSchema(BaseModel):
     @field_validator("timezone", mode="before")
     def validate_timezone(cls, value):
         if value and value not in pytz.all_timezones:
-            raise ValueError(f"Invalid timezone: {value}")
+            raise ValueError(f"Invalid timezone")
         return value
 
 

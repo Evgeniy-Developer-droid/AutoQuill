@@ -19,6 +19,41 @@ async def me_api(
     return user
 
 
+@router.put("/password", response_model=user_schemas.UserSchema)
+async def update_password_api(
+    password_data: user_schemas.PasswordUpdateSchema,
+    user: user_models.User = Depends(auth_tools.get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Update the password for the current user.
+    """
+    # Check if the old password is correct
+    if not await auth_tools.password_verify(password_data.old_password, user.password):
+        raise HTTPException(status_code=400, detail="Incorrect old password")
+    # Hash the new password
+    hashed_new_password = await auth_tools.hash_password(password_data.password)
+
+    # Update the user's password in the database
+    await user_queries.update_user_query(user.id, {"password": hashed_new_password}, session=session)
+
+    return user
+
+
+@router.put("/me", response_model=user_schemas.UserSchema)
+async def update_me_api(
+    user_data: user_schemas.UserUpdateSchema,
+    user: user_models.User = Depends(auth_tools.get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Update the current user's profile.
+    """
+    # Update the user's profile in the database
+    await user_queries.update_user_query(user.id, user_data.model_dump(exclude_none=True), session=session)
+    return user
+
+
 @router.get("/dashboard", response_model=user_schemas.DashboardOutSchemas)
 async def dashboard_api(
     user: user_models.User = Depends(auth_tools.get_current_active_user),

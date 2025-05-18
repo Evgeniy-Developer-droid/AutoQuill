@@ -1,8 +1,10 @@
 from select import select
+from typing import List
 from uuid import uuid4
 
 import arrow
 import fitz
+import httpx
 import pytz
 from celery import Celery
 from celery.utils.log import get_task_logger
@@ -540,3 +542,48 @@ def renew_trials_task():
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(renew_trials())
+
+
+@celery_app.task
+def send_email_task(emails: List[str], subject: str, body: str, type_: str = "text", template: str = None, dynamic_template_data: dict = None):
+    async def send_email():
+        headers = {
+            "Authorization": f"Bearer {config.SENDGRID_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        async with async_session_maker() as session:
+            try:
+                async with httpx.AsyncClient() as client:
+                    data = {
+                        "personalizations": [
+                            {
+                                "to": [{"email": email} for email in emails],
+                            }
+                        ],
+                        "from": {"email": config.SENDGRID_SENDER_EMAIL},
+                        "subject": subject,
+                        "content": [
+                            {
+                                "type": "text/plain" if type_ == "text" else "text/html",
+                                "value": body,
+                            }
+                        ]
+                    }
+                    if template:
+                        data["template_id"] = template
+                    if dynamic_template_data:
+                        data["dynamic_template_data"] = dynamic_template_data
+                    response = await client.post(
+                        "https://api.sendgrid.com/v3/mail/send",
+                        headers=headers,
+                        json=data,
+                    )
+                    if response.is_success:
+                        logger.info(f"Email sent successfully to {emails}")
+                        return
+                    logger.error(f"Failed to send email. Status code: {response.status_code}, Response: {response.text}")
+            except Exception as e:
+                logger.error(f"Error in send_email: {e}")
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(send_email())
