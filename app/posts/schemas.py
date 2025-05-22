@@ -30,12 +30,9 @@ class PostOutSchema(BaseModel):
     @field_serializer("scheduled_time")
     def serialize_scheduled_time(self, value: datetime) -> Optional[datetime]:
         if value:
-            print(f"Original scheduled_time: {value}")
             # change utc to local time
             user_tz = pytz.timezone(self.timezone or "UTC")
-            print(f"User timezone: {user_tz}")
             local_time = value.astimezone(user_tz)
-            print(f"Localized scheduled_time: {local_time}")
             return local_time.replace(tzinfo=None)
         return None
 

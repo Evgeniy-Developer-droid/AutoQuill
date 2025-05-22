@@ -1,12 +1,13 @@
-FROM python:3.9
+FROM python:3.10-slim
 
 WORKDIR /code
 ENV PYTHONPATH=/code
-COPY ./deploy/prod/req.txt /code/req.txt
 
-RUN  pip install --no-cache-dir --upgrade pip
+COPY ./deploy/requirements-base.txt /code
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements-base.txt
 
-RUN pip install --no-cache-dir --upgrade -r /code/req.txt
+COPY ./deploy/requirements-dev.txt /code
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements-dev.txt
 
 
 COPY . .

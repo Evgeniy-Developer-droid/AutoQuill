@@ -1,7 +1,7 @@
 from select import select
 from typing import List
 from uuid import uuid4
-
+import time
 import arrow
 import fitz
 import httpx
@@ -11,6 +11,7 @@ from celery.utils.log import get_task_logger
 from pathlib import Path
 from langchain_huggingface import HuggingFaceEmbeddings
 import os, sys
+from more_itertools import chunked
 from app.billing import queries as billing_queries
 from app.billing.models import Payment, Plan
 from app.billing.services.referral import process_referral_reward
@@ -161,38 +162,27 @@ def proceed_upload_file_task(file_path, credentials):
         nonlocal file_path
         nonlocal credentials
         document_id = uuid4().hex
+        start = time.time()
         text_splitter = CharacterTextSplitter(chunk_size=512, chunk_overlap=64)
+        print(f"text splitter init time: {time.time() - start}")
 
+        start = time.time()
         es = ElasticsearchStore(
             es_url=config.ELASTICSEARCH_HOST,
             index_name="documents",
         )
+        print(f"elasticsearch init time: {time.time() - start}")
 
         async with async_session_maker() as session:
             try:
+                text = ""
+                start = time.time()
                 if file_path.endswith(".pdf"):
                     doc = fitz.open(file_path, filetype="pdf")
-                    texts = []
-                    for page in doc:
-                        texts.append(page.get_text())
-
-                    text = "\n\n".join(texts)
-
-                    if text:
-                        chunked_texts = text_splitter.split_text(text)
-                    else:
-                        await create_channel_log_query(
-                            data={
-                                "channel_id": credentials["channel_id"],
-                                "message": f"Sorry, I couldn't extract text from the PDF file {credentials['source_metadata']['file_name']}. Please try again.",
-                            },
-                            session=session,
-                        )
-                        return
+                    text = "\n\n".join([page.get_text() for page in doc])
                 elif file_path.endswith(".txt") or file_path.endswith(".md"):
                     with open(file_path, "r", encoding="utf-8") as file:
                         text = file.read()
-                        chunked_texts = text_splitter.split_text(text)
                 else:
                     await create_channel_log_query(
                         data={
@@ -202,34 +192,60 @@ def proceed_upload_file_task(file_path, credentials):
                         session=session,
                     )
                     return
-                if not chunked_texts:
+                if not text.strip():
                     await create_channel_log_query(
                         data={
                             "channel_id": credentials["channel_id"],
-                            "message": f"Sorry, I couldn't extract text from the file {credentials['source_metadata']['file_name']}. Please try again.",
+                            "message": f"Sorry, no text extracted from {credentials['source_metadata']['file_name']}.",
                         },
                         session=session,
                     )
                     return
-                for i, chunk in enumerate(chunked_texts):
-                    _id = uuid4().hex
-                    es_document = ai_schemas.ES_Document(
-                        id=_id,
-                        document_id=document_id,
-                        title=credentials["source_metadata"]["file_name"],
-                        text=chunk,
-                        timestamp=arrow.now().format("YYYY-MM-DD"),
-                        channel_id=credentials["channel_id"],
-                        company_id=credentials["company_id"],
-                        embedding=embedding_model.embed_documents(chunk)[0],
-                        metadata={"source": "document"},
-                        page=i,
+                chunked_texts = text_splitter.split_text(text)
+                if not chunked_texts:
+                    await create_channel_log_query(
+                        data={
+                            "channel_id": credentials["channel_id"],
+                            "message": f"Sorry, text could not be split from {credentials['source_metadata']['file_name']}.",
+                        },
+                        session=session,
                     )
-                    es.client.index(
-                        index="documents",
-                        id=_id,
-                        document=es_document.model_dump()
-                    )
+                    return
+                print(f"chunked texts time: {time.time() - start}")
+                batch_size = 16
+                d = chunked(chunked_texts, batch_size)
+                print(f"chunked texts size: {len(chunked_texts)}")
+                print(f"chunked texts batch size: {batch_size}")
+                print(f"chunked texts chunks: {len(list(d))}")
+                # save embeddings to es
+                for i, chunk_group in enumerate(chunked(chunked_texts, batch_size)):
+                    print(f"embedding batch {i} chunks: {len(chunk_group)}")
+                    start_batch = time.time()
+                    embeddings = embedding_model.embed_documents(chunk_group)
+                    print(f"embedding batch {i} time: {time.time() - start_batch:.2f}s")
+
+                    for j, (chunk, emb) in enumerate(zip(chunk_group, embeddings)):
+                        _id = uuid4().hex
+                        es_document = ai_schemas.ES_Document(
+                            id=_id,
+                            document_id=document_id,
+                            title=credentials["source_metadata"]["file_name"],
+                            text=chunk,
+                            timestamp=arrow.now().format("YYYY-MM-DD"),
+                            channel_id=credentials["channel_id"],
+                            company_id=credentials["company_id"],
+                            embedding=emb,
+                            metadata={"source": "document"},
+                            page=i * batch_size + j,
+                        )
+
+                        start_index = time.time()
+                        es.client.index(
+                            index="documents",
+                            id=_id,
+                            document=es_document.model_dump()
+                        )
+                        print(f"es save time: {time.time() - start_index:.2f}s")
                 # save source to db
                 source = ai_schemas.SourcesInSchema(
                     source_type="file",
