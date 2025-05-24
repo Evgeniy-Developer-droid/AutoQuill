@@ -64,7 +64,7 @@ async def delete_channel(
     deleted = await channel_queries.delete_channel_query(channel_id, session)
     if not deleted:
         raise HTTPException(status_code=400, detail="Failed to delete channel")
-    return {"detail": "Channel deleted successfully"}
+    return {"message": "Channel deleted successfully"}
 
 
 @router.get("/{channel_id}", response_model=channel_schemas.ChannelOutSchema)

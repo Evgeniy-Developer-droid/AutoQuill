@@ -86,7 +86,7 @@ async def delete_post(
     deleted = await post_queries.delete_post_query(post_id, session)
     if not deleted:
         raise HTTPException(status_code=400, detail="Failed to delete post")
-    return {"detail": "Post deleted successfully"}
+    return {"message": "Post deleted successfully"}
 
 
 @router.get("/{post_id}", response_model=post_schemas.PostOutSchema)
