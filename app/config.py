@@ -22,9 +22,16 @@ SUPERUSER_PASSWORD = os.getenv("SUPERUSER_PASSWORD", "superuser")
 
 ELASTICSEARCH_HOST = os.getenv("ELASTICSEARCH_HOST")
 
-HUGGINGFACE_EMBEDDING_MODEL = "intfloat/multilingual-e5-base"
+EMBEDDING_SERVICE = os.getenv("EMBEDDING_SERVICE", "huggingface")
+
+HUGGINGFACE_EMBEDDING_MODEL = os.getenv("HUGGINGFACE_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
+
 MODEL_DEVICE = os.getenv("MODEL_DEVICE", "cpu")
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+
 MAX_TOKEN_LIMIT = int(os.getenv("MAX_TOKEN_LIMIT", 4096))
 GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
 
@@ -44,5 +51,10 @@ LIQPAY_PRIVATE_KEY = os.getenv("LIQPAY_PRIVATE_KEY")
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 SENDGRID_SENDER_EMAIL = os.getenv("SENDGRID_SENDER_EMAIL")
 
+
+RATE_LIMITS_PER_MINUTE = {
+    "ai_generate": 1,
+    "post_send": 1
+}
 
 

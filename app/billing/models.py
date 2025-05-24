@@ -20,6 +20,7 @@ class Plan(Base):
     send_post_limit: Mapped[int] = mapped_column()
     ai_generation_limit: Mapped[int] = mapped_column()
     channels_limit: Mapped[int] = mapped_column()
+    knowledge_base_limit: Mapped[int] = mapped_column(nullable=True)
     ai_enabled: Mapped[bool] = mapped_column(default=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     is_trial: Mapped[bool] = mapped_column(default=False)

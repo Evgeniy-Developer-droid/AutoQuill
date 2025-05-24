@@ -1,7 +1,7 @@
 from sqladmin import ModelView
 from app.users.models import User, UserSetting, Company
 from app.auth.models import AuthSession
-from app.channels.models import Channel
+from app.channels.models import Channel, ChannelLog
 from app.posts.models import Post
 from app.ai.models import Source, AIConfig, ScheduledAIPost
 from app.billing.models import Plan, Usage, Referral, Payment
@@ -154,4 +154,15 @@ class PaymentAdmin(AdminModelView, model=Payment):
     column_searchable_list = [Payment.id, Payment.company_id, Payment.amount]
     column_filters = [Payment.company_id, Payment.amount]
 
+
+class ChannelLogAdmin(AdminModelView, model=ChannelLog):
+    column_list = [
+        ChannelLog.id,
+        ChannelLog.channel_id,
+        ChannelLog.action,
+        ChannelLog.message,
+        ChannelLog.created_at,
+    ]
+    column_searchable_list = [ChannelLog.id, ChannelLog.channel_id, ChannelLog.action]
+    column_filters = [ChannelLog.channel_id, ChannelLog.action]
 

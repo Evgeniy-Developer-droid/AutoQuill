@@ -1,8 +1,8 @@
 import json
 
-from elasticsearch import Elasticsearch
 from fastapi import FastAPI
 from langchain_elasticsearch import ElasticsearchStore
+from langchain_openai import OpenAIEmbeddings
 
 from app import config
 from app.auth.router import router as auth_router
@@ -46,13 +46,6 @@ async def create_elasticsearch_indices():
         print(f"Error creating Elasticsearch indices: {e}")
 
 
-# @asynccontextmanager
-# async def on_startup(app: FastAPI):
-#     await init_superuser()
-#     await create_elasticsearch_indices()
-#     yield
-
-
 app = FastAPI(
     debug=config.DEBUG,
     title="AutoQuill API",
@@ -78,6 +71,28 @@ async def startup_event():
     await init_superuser()
     await create_elasticsearch_indices()
 
+
+# @app.get("/")
+# async def root():
+#     # embedding_model = HuggingFaceEndpointEmbeddings(
+#     #     huggingfacehub_api_token=config.HUGGINGFACE_API_KEY,
+#     #     task="feature-extraction",
+#     #     model="sentence-transformers/all-mpnet-base-v2",
+#     # )
+#     embedding_model = OpenAIEmbeddings(
+#         api_key=config.OPENAI_API_KEY,
+#         model="text-embedding-3-small",
+#         dimensions=768,
+#     )
+#     chunk_group = [
+#         "This is a test document.",
+#         "Another document for testing purposes.",
+#         "Yet another document to check embeddings."
+#     ]
+#     embeddings = embedding_model.embed_documents(chunk_group)
+#     print("Embeddings:", embeddings)
+#
+#     return {"message": "Welcome to AutoQuill API"}
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["users"])

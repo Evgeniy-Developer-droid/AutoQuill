@@ -1,20 +1,31 @@
 from typing import TypedDict, Dict, Any
-
 from elasticsearch import Elasticsearch
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_elasticsearch import ElasticsearchStore
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings, HuggingFaceEndpointEmbeddings
+from openai import embeddings
 
 from app import config
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph
 
+if config.EMBEDDING_SERVICE == "huggingface":
+    embedding_model = HuggingFaceEndpointEmbeddings(
+        huggingfacehub_api_token=config.HUGGINGFACE_API_KEY,
+        task="feature-extraction",
+        model=config.HUGGINGFACE_EMBEDDING_MODEL
+    )
+elif config.EMBEDDING_SERVICE == "openai":
+    embedding_model = OpenAIEmbeddings(
+        api_key=config.OPENAI_API_KEY,
+        model=config.OPENAI_EMBEDDING_MODEL,
+        dimensions=768,
+    )
+else:
+    raise ValueError(f"Unsupported embedding service: {config.EMBEDDING_SERVICE}")
 
-embedding_model = HuggingFaceEmbeddings(
-    model_name=config.HUGGINGFACE_EMBEDDING_MODEL,
-    model_kwargs={"device": config.MODEL_DEVICE}
-)
 
 model = ChatOpenAI(
     temperature=0,

@@ -1,3 +1,4 @@
+import traceback
 from select import select
 from typing import List
 from uuid import uuid4
@@ -9,11 +10,14 @@ import pytz
 from celery import Celery
 from celery.utils.log import get_task_logger
 from pathlib import Path
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 import os, sys
+
+from langchain_openai import OpenAIEmbeddings
 from more_itertools import chunked
 from app.billing import queries as billing_queries
 from app.billing.models import Payment, Plan
+from app.billing.services.rate_limit import check_rate_limit
 from app.billing.services.referral import process_referral_reward
 from app.posts import queries as post_queries
 from app.ai import schemas as ai_schemas, prompts
@@ -38,10 +42,21 @@ celery_app = Celery("tasks")
 celery_app.config_from_object("app.celery_config")
 
 post_graph = PostGraph().get_compiled_graph()
-embedding_model = HuggingFaceEmbeddings(
-    model_name=config.HUGGINGFACE_EMBEDDING_MODEL,
-    model_kwargs={"device": config.MODEL_DEVICE}
-)
+
+if config.EMBEDDING_SERVICE == "huggingface":
+    embedding_model = HuggingFaceEndpointEmbeddings(
+        huggingfacehub_api_token=config.HUGGINGFACE_API_KEY,
+        task="feature-extraction",
+        model=config.HUGGINGFACE_EMBEDDING_MODEL
+    )
+elif config.EMBEDDING_SERVICE == "openai":
+    embedding_model = OpenAIEmbeddings(
+        api_key=config.OPENAI_API_KEY,
+        model=config.OPENAI_EMBEDDING_MODEL,
+        dimensions=768,
+    )
+else:
+    raise ValueError(f"Unsupported embedding service: {config.EMBEDDING_SERVICE}")
 
 logger = get_task_logger(__name__)
 
@@ -108,6 +123,30 @@ def ai_generate_post_task(input_values):
         nonlocal input_values
         async with async_session_maker() as session:
             try:
+                channel = await channel_queries.get_channel_query(
+                    channel_id=input_values["additional_kwargs"]["channel_id"],
+                    company_id=input_values["additional_kwargs"]["company_id"],
+                    session=session,
+                )
+                if not channel:
+                    raise ValueError("Channel not found.")
+                # check rate limit
+                success = await check_rate_limit(
+                    db=session,
+                    channel=channel,
+                    action="ai_generate",
+                    raise_exception=False,
+                )
+                if not success:
+                    await create_channel_log_query(
+                        data={
+                            "channel_id": input_values["additional_kwargs"]["channel_id"],
+                            "message": f"AI generation failed. Rate limit exceeded.",
+                        },
+                        session=session,
+                    )
+                    return
+
                 result = await post_graph.ainvoke(input_values)
                 if "additional_kwargs" in result and "response" in result["additional_kwargs"]:
                     response = result["additional_kwargs"]["response"]
@@ -125,6 +164,7 @@ def ai_generate_post_task(input_values):
                         await create_channel_log_query(
                             data={
                                 "channel_id": input_values["additional_kwargs"]["channel_id"],
+                                "action": "ai_generate",
                                 "message": f"AI generated post successfully.",
                             },
                             session=session,
@@ -140,6 +180,7 @@ def ai_generate_post_task(input_values):
 
             except Exception as e:
                 logger.error(f"Error in ai_generate_post: {e}")
+                logger.error(traceback.format_exc())
                 await create_channel_log_query(
                     data={
                         "channel_id": input_values["additional_kwargs"]["channel_id"],
@@ -319,6 +360,23 @@ def ai_generate_scheduled_post_task(data: dict, draft: bool = False):
                 )
                 return
 
+            # check rate limit
+            success = await check_rate_limit(
+                db=session,
+                channel=channel,
+                action="ai_generate",
+                raise_exception=False,
+            )
+            if not success:
+                await create_channel_log_query(
+                    data={
+                        "channel_id": data["channel_id"],
+                        "message": f"AI generation failed. Rate limit exceeded.",
+                    },
+                    session=session,
+                )
+                return
+
             prompt = prompts.GENERAL
             if channel.channel_type == "telegram":
                 prompt = prompts.TELEGRAM
@@ -373,6 +431,7 @@ def ai_generate_scheduled_post_task(data: dict, draft: bool = False):
                         await create_channel_log_query(
                             data={
                                 "channel_id": data["channel_id"],
+                                "action": "ai_generate",
                                 "message": f"AI generated post successfully.",
                             },
                             session=session,

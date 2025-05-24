@@ -36,6 +36,7 @@ class ChannelLog(Base):
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"))
     post_id: Mapped[int] = mapped_column(ForeignKey("posts.id", ondelete="CASCADE"), nullable=True)
     message: Mapped[str] = mapped_column(nullable=False)
+    action: Mapped[str] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(), server_default=func.now())
 
     channel: Mapped["Channel"] = relationship(back_populates="logs", lazy="selectin")

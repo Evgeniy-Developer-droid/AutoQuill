@@ -35,6 +35,7 @@ class Telegram(Provider):
                         await channel_queries.create_channel_log_query({
                             "channel_id": self.post.channel_id,
                             "post_id": self.post.id,
+                            "action": "post_send",
                             "message": f"Post sent to Telegram. Message ID: {data['result']['message_id']}"
                         }, session)
                         await posts_queries.update_post_query(self.post.id, {

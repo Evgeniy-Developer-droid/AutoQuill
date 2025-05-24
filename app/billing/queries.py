@@ -21,6 +21,7 @@ async def get_or_create_trial_plan_query(
                 send_post_limit=10,
                 ai_generation_limit=10,
                 channels_limit=1,
+                knowledge_base_limit=1,
                 is_trial=True,
             )
             db_session.add(trial_plan)

@@ -1,7 +1,5 @@
 from typing import Optional, List
 
-from sympy.assumptions.cnf import Literal
-
 from app.ai import prompts
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from langchain_elasticsearch import ElasticsearchStore
@@ -11,6 +9,7 @@ from uuid import uuid4
 from app import config
 from app.ai.utils import add_ai_config_prompt
 from app.auth import auth as auth_tools
+from app.billing.services.rate_limit import check_rate_limit, check_source_rate_limit
 from app.billing.services.usage import check_and_consume_usage
 from app.celery_tasks import ai_generate_post_task, proceed_upload_file_task
 from app.channels import queries as channel_queries
@@ -41,7 +40,14 @@ async def upload_file(
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found.")
 
-    filename = f"{uuid4().hex}_{file.filename}"
+    # check rate limit sources
+    await check_source_rate_limit(
+        db=session,
+        channel=channel,
+        plan=user.company.current_plan,
+    )
+
+    filename = f"{file.filename.split('.')[0]}_{uuid4().hex[:5]}.{file.filename.split('.')[-1]}"
     file_path = f"{config.UPLOAD_FOLDER}/{filename}"
 
     with open(file_path, "wb") as f:
@@ -77,7 +83,14 @@ async def upload_document(
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found.")
 
-    filename = f"{data.title.replace(' ', '_')}{uuid4().hex[:5]}.txt"
+    # check rate limit sources
+    await check_source_rate_limit(
+        db=session,
+        channel=channel,
+        plan=user.company.current_plan,
+    )
+
+    filename = f"{data.title.replace(' ', '_')}_{uuid4().hex[:5]}.txt"
     file_path = f"{config.UPLOAD_FOLDER}/{filename}"
     with open(file_path, "w") as f:
         f.write(data.text)
@@ -188,6 +201,13 @@ async def generate_posts(
     )
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found.")
+
+    # check rate limit
+    await check_rate_limit(
+        db=session,
+        channel=channel,
+        action="ai_generate"
+    )
 
     prompt = prompts.GENERAL
     if channel.channel_type == "telegram":

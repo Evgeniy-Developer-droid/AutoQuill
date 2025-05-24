@@ -100,4 +100,6 @@ def init_admin(app):
     admin.add_view(admin_models.ReferralAdmin)
     admin.add_view(admin_models.PaymentAdmin)
 
+    admin.add_view(admin_models.ChannelLogAdmin)
+
     return admin

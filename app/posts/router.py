@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from app.auth import auth as auth_tools
 from app.billing.models import ActionType
+from app.billing.services.rate_limit import check_rate_limit
 from app.billing.services.usage import check_and_consume_usage
 from app.posts import queries as post_queries
 from app.posts import schemas as post_schemas
@@ -130,6 +131,13 @@ async def send_post(
     existing_post = await post_queries.get_post_query(post_id, user.company_id, session)
     if not existing_post:
         raise HTTPException(status_code=404, detail="Post not found")
+
+    # rate limit check
+    await check_rate_limit(
+        db=session,
+        channel=existing_post.channel,
+        action="post_send"
+    )
 
     provider = None
     if existing_post.channel.channel_type == "telegram":
