@@ -15,6 +15,6 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements-dev.t
 COPY ./ /code
 
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--forwarded-allow-ips='*'", "--proxy-headers"]
+CMD ["uvicorn", "app.main:app", "--forwarded-allow-ips='*'", "--proxy-headers", "--host", "0.0.0.0", "--port", "8000"]
 
 
