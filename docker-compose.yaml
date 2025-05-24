@@ -14,7 +14,7 @@ services:
       - .env
 
   elasticsearch:
-    image: elasticsearch:8.18.2
+    image: elasticsearch:8.14.0
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
