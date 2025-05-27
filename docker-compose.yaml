@@ -9,9 +9,11 @@ services:
     volumes:
       - .data/postgres:/var/lib/postgresql/data
     ports:
-      - 5432:5432
+      - "127.0.0.1:5432:5432"
     env_file:
       - .env
+    networks:
+      - autoquill
 
   elasticsearch:
     image: elasticsearch:8.14.0
@@ -21,8 +23,8 @@ services:
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
     ports:
-      - "9200:9200"
-      - "9300:9300"
+      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:9300:9300"
     volumes:
       - ./elasticsearch_data:/usr/share/elasticsearch/data
     restart: unless-stopped
@@ -36,12 +38,16 @@ services:
       timeout: 10s
       retries: 5
       start_period: 1m
+    networks:
+      - autoquill
 
   adminer:
     image: adminer
     restart: always
     ports:
-      - 8080:8080
+      - "127.0.0.1:8080:8080"
+    networks:
+      - autoquill
 
   app:
     build: 
@@ -52,12 +58,19 @@ services:
     volumes:
       - ./:/code
     ports:
-      - 8000:8000
+      - "127.0.0.1:8000:8000"
     env_file:
       - .env
+    command:
+      - /bin/bash
+      - -c
+      - |
+        alembic upgrade head && uvicorn app.main:app --forwarded-allow-ips='*' --proxy-headers --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - db
       - elasticsearch
+    networks:
+      - autoquill
 
   celery_worker:
     build:
@@ -68,6 +81,8 @@ services:
       - .:/code
     depends_on:
       - redis
+    networks:
+      - autoquill
 
   celery_beat:
     build:
@@ -78,6 +93,8 @@ services:
       - .:/code
     depends_on:
       - redis
+    networks:
+      - autoquill
 
   redis:
     image: redis:7
@@ -88,20 +105,26 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
     restart: unless-stopped
+    networks:
+      - autoquill
 
-  kibana:
-    image: kibana:8.14.0
-    container_name: kibana
-    depends_on:
-      - elasticsearch
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - SERVER_NAME=kibana.local
-      - XPACK_SECURITY_ENABLED=false          # Якщо без авторизації
-    ports:
-      - "5601:5601"
-    restart: unless-stopped
+#  kibana:
+#    image: kibana:8.14.0
+#    container_name: kibana
+#    depends_on:
+#      - elasticsearch
+#    environment:
+#      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+#      - SERVER_NAME=kibana.local
+#      - XPACK_SECURITY_ENABLED=false          # Якщо без авторизації
+#    ports:
+#      - "127.0.0.1:5601:5601"
+#    restart: unless-stopped
 
+
+networks:
+  autoquill:
+    driver: bridge
 
 volumes:
   db:

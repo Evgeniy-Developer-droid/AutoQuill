@@ -12,6 +12,8 @@ services:
       - 5432:5432
     env_file:
       - .env
+    networks:
+      - autoquill
 
   elasticsearch:
     image: elasticsearch:8.14.0
@@ -36,6 +38,8 @@ services:
       timeout: 10s
       retries: 5
       start_period: 1m
+    networks:
+      - autoquill
 
   app:
     build:
@@ -49,10 +53,17 @@ services:
       - 8000:8000
     env_file:
       - .env
+    command:
+      - /bin/bash
+      - -c
+      - |
+        alembic upgrade head && uvicorn app.main:app --forwarded-allow-ips='*' --proxy-headers --host 0.0.0.0 --port 8000
     depends_on:
       - db
       - elasticsearch
       - redis
+    networks:
+      - autoquill
 
   celery_worker:
     build:
@@ -63,6 +74,8 @@ services:
       - .:/code
     depends_on:
       - redis
+    networks:
+      - autoquill
 
   celery_beat:
     build:
@@ -73,6 +86,8 @@ services:
       - .:/code
     depends_on:
       - redis
+    networks:
+      - autoquill
 
   redis:
     image: redis:7
@@ -83,7 +98,13 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
     restart: unless-stopped
+    networks:
+      - autoquill
 
+
+networks:
+  autoquill:
+    driver: bridge
 
 volumes:
   db:

@@ -37,7 +37,6 @@ jobs:
             cd AutoQuill
             
             echo "${{ secrets.ENV_FILE }}" > .env
-            
+            sudo docker network create autoquill
             sudo docker compose -f docker-compose.prod.yaml build
             sudo docker compose -f docker-compose.prod.yaml up -d
-            sudo docker exec app alembic upgrade head
