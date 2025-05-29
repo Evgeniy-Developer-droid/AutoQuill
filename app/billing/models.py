@@ -28,6 +28,16 @@ class Plan(Base):
     companies: Mapped["Company"] = relationship(back_populates="current_plan", lazy="selectin")
 
 
+class OneTimePlan(Base):
+    __tablename__ = "one_time_plans"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    price: Mapped[int] = mapped_column()
+    send_post_limit: Mapped[int] = mapped_column()
+    ai_generation_limit: Mapped[int] = mapped_column()
+
+
 class Usage(Base):
     __tablename__ = "usages"
 

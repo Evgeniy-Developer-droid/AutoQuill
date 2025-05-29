@@ -9,7 +9,7 @@ services:
     volumes:
       - /mnt/data/postgres:/var/lib/postgresql/data
     ports:
-      - 5432:5432
+      - "127.0.0.1:5432:5432"
     env_file:
       - .env
     networks:
@@ -23,8 +23,8 @@ services:
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
     ports:
-      - "9200:9200"
-      - "9300:9300"
+      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:9300:9300"
     volumes:
       - /root/data/elasticsearch_data:/usr/share/elasticsearch/data
     restart: unless-stopped
@@ -50,7 +50,7 @@ services:
     volumes:
       - ./:/code
     ports:
-      - 8000:8000
+      - "127.0.0.1:8000:8000"
     env_file:
       - .env
     command:

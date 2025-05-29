@@ -1,7 +1,11 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 from pydantic import BaseModel
+
+
+class BillingBaseSchema(BaseModel):
+    method: Literal["liqpay", "coinbase"] = "liqpay"
 
 
 class UsageOutSchema(BaseModel):
@@ -67,3 +71,7 @@ class PaymentListSchema(BaseModel):
     model_config = {
         "from_attributes": True,
     }
+
+
+class AddBalanceSchema(BillingBaseSchema):
+    one_time_plan_id: int

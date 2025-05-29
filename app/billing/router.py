@@ -55,3 +55,21 @@ async def get_payments(
         payments=payments,
         total=total
     )
+
+
+@router.post("/balance/add", response_model=dict)
+async def add_balance(
+    data: billing_schemas.AddBalanceSchema,
+    session: AsyncSession = Depends(get_session),
+    user: user_models.User = Depends(auth_tools.get_current_active_user),
+):
+    # if amount <= 0:
+    #     raise HTTPException(status_code=400, detail="Amount must be greater than zero.")
+    #
+    # await billing_queries.add_balance_query(
+    #     company_id=user.company.id,
+    #     amount=amount,
+    #     session=session
+    # )
+
+    return {"message": "Balance successfully added."}
